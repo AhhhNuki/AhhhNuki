@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Calculator</title>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <h1>Product Price Calculator</h1>
+    
+    <label for="price">Price in USD:</label>
+    <input type="number" id="price" placeholder="Enter price in USD" step="0.01">
+    <br>
+    
+    <label for="weight">Weight:</label>
+    <input type="number" id="weight" placeholder="Enter weight" step="0.01">
+    <br>
+    
+    <label>Weight Unit:</label>
+    <input type="radio" id="ounces" name="weightUnit" value="ounces">
+    <label for="ounces">Ounces</label>
+    <input type="radio" id="pounds" name="weightUnit" value="pounds" checked>
+    <label for="pounds">Pounds</label>
+    <br>
+    
+    <label for="customRate">Custom Exchange Rate (USD to GEL):</label>
+    <input type="number" id="customRate" placeholder="Enter custom exchange rate" step="0.01">
+    <br>
+    
+    <button id="calculate">Calculate</button>
+    
+    <p id="result">Total Price: N/A</p>
+</body>
+</html>
