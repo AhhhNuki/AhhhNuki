@@ -5,31 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Calculator</title>
     <script src="script.js" defer></script>
+
+    <link href="bootstrap-5.3.3-dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="bootstrap-5.3.3-dist/js/bootstrap.bundle.min.js" ></script>
+
+    <link href="style.css" rel="stylesheet">
+    
 </head>
 <body>
-    <h1>Product Price Calculator</h1>
+
+    <div class="container">
+        <div class="row">
+
+
+            <div class="col-lg-12">
+                <p class="main-text">გაიგე რა დაგიჯდება ნივთის გამოწერა და მოგიწევს თუ არა დღგ-ს გადახდა</p>
+            </div>
+            
+            
+            <div class="col-lg-6">
+                
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="price" placeholder="Enter price in USD">
+                        <label for="price">ფასი USD:</label>
+                    </div>
+                      
+
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="weight" placeholder="Enter weight">
+                        <label for="weight">წონა:</label>
+                    </div>
+                
+
+
+                    <div class="mb-3">
+                        <input type="radio" class="btn-check" name="weightUnit" id="ounces" autocomplete="off" value="ounces">
+                        <label class="btn btn-outline-dark" for="ounces">Ounces</label>
+
+                        <input type="radio" class="btn-check" name="weightUnit" id="pounds" autocomplete="off" value="pounds" checked>
+                        <label class="btn btn-outline-dark" for="pounds">Pounds</label>
+
+                        <input type="radio" class="btn-check" name="weightUnit" id="kilograms" autocomplete="off" value="kilograms">
+                        <label class="btn btn-outline-dark" for="kilograms">Kilograms</label>
+                        
+                    </div>
+                    
+                    
+                    
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="customRate" placeholder="Enter custom exchange rate">
+                        <label for="customRate">Custom Exchange Rate (USD to GEL):</label>
+                    </div>
+
+
+                    
+                    
+                    <button class="btn btn-dark" id="calculate">გამოთვლა</button>
+                    
+                    
+            </div>
+
+            <div class="col-lg-6">
+
+                  <div class="card text-bg-dark mb-3 custom-card" >
+                    <div class="card-body">
+                      <h5 class="card-title">Dark card title</h5>
+                      <div class="card-text" id="result">Total Price: N/A</div>
+                    </div>
+                  </div>
+                
+                
+            </div>
+            
+        </div>
+    </div>
     
-    <label for="price">Price in USD:</label>
-    <input type="number" id="price" placeholder="Enter price in USD" step="0.01">
-    <br>
-    
-    <label for="weight">Weight:</label>
-    <input type="number" id="weight" placeholder="Enter weight" step="0.01">
-    <br>
-    
-    <label>Weight Unit:</label>
-    <input type="radio" id="ounces" name="weightUnit" value="ounces">
-    <label for="ounces">Ounces</label>
-    <input type="radio" id="pounds" name="weightUnit" value="pounds" checked>
-    <label for="pounds">Pounds</label>
-    <br>
-    
-    <label for="customRate">Custom Exchange Rate (USD to GEL):</label>
-    <input type="number" id="customRate" placeholder="Enter custom exchange rate" step="0.01">
-    <br>
-    
-    <button id="calculate">Calculate</button>
-    
-    <p id="result">Total Price: N/A</p>
 </body>
 </html>

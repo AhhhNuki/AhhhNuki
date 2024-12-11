@@ -15,6 +15,8 @@ document.getElementById('calculate').addEventListener('click', async () => {
         weightKG = weightInput * 0.0283495; // Ounces to KG
     } else if (weightUnit === 'pounds') {
         weightKG = weightInput * 0.453592; // Pounds to KG
+    } else if (weightUnit === 'kilograms') {
+        weightKG = weightInput
     }
 
     // Fetch live USD to GEL rate if custom rate is not provided
@@ -48,10 +50,10 @@ document.getElementById('calculate').addEventListener('click', async () => {
     document.getElementById('result').innerHTML = `
         <strong>Results:</strong>
         <ul>
-            <li>Price in GEL: ${priceGEL.toFixed(2)} GEL</li>
-            <li>Delivery Cost: ${deliveryCostGEL.toFixed(2)} GEL</li>
-            <li>VAT (18%): ${vat.toFixed(2)} GEL</li>
-            <li>Total Amount: ${totalCostGEL.toFixed(2)} GEL</li>
+            <li>ფასი: ${priceGEL.toFixed(2)} ₾</li>
+            <li>ჩამოტანა: ${deliveryCostGEL.toFixed(2)} ₾</li>
+            <li>დღგ (18%): ${vat.toFixed(2)} ₾</li>
+            <li>სულ: ${totalCostGEL.toFixed(2)} ₾</li>
         </ul>
         <p>Exchange Rate Used: ${exchangeRate.toFixed(2)}</p>
     `;
