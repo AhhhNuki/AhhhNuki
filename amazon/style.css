@@ -14,3 +14,15 @@ body {
 .custom-card {
     background-color: #2B2738 !important;
 }
+
+.price_clean {
+     color: #00df00;
+}
+
+.price_add {
+     color: #ffae00;
+}
+
+#price_whole {
+    color: #00df00;
+}
