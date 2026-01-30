@@ -3,8 +3,13 @@ document.getElementById('calculate').addEventListener('click', async () => {
     const weightInput = parseFloat(document.getElementById('weight').value);
     const customRate = parseFloat(document.getElementById('customRate').value);
 
+    const resultContainer = document.getElementById('result');
+
+    // NEW VARIABLE HERE
+    const declaration_preparation_fee = 10; 
+
     if (isNaN(priceUSD) || isNaN(weightInput)) {
-        document.getElementById('result').textContent = 'Please enter valid numbers.';
+        resultContainer.innerHTML = '<div class="text-red-400 text-center bg-red-400/10 p-4 rounded-lg">გთხოვთ შეიყვანოთ სწორი რიცხვები.</div>';
         return;
     }
 
@@ -16,7 +21,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
     } else if (weightUnit === 'pounds') {
         weightKG = weightInput * 0.453592;
     } else {
-        weightKG = weightInput; // kilograms
+        weightKG = weightInput; 
     }
 
     // Get exchange rate
@@ -33,31 +38,70 @@ document.getElementById('calculate').addEventListener('click', async () => {
     }
 
     const priceGEL = priceUSD * exchangeRate;
-    const deliveryCostUSD = weightKG * 8.5;
+    const deliveryCostUSD = weightKG * 8.5; 
     const deliveryCostGEL = deliveryCostUSD * exchangeRate;
 
     // Base total (before taxes)
     let totalCostGEL = priceGEL + deliveryCostGEL;
 
-    // VAT and Treasury (only if priceGEL >= 300)
+    // VAT and Treasury logic
     let vat = 0;
-    const treasury = 20; // Fixed treasury fee
+    const treasury = 20; 
 
-    if (priceGEL >= 300) {
-        vat = totalCostGEL * 0.18;
-        totalCostGEL += vat + treasury;
+    const taxableAmount = totalCostGEL; 
+
+    if (taxableAmount >= 300) {
+        vat = taxableAmount * 0.18;
+        // Add VAT, Treasury, AND Declaration Fee to the total
+        totalCostGEL += vat + treasury + declaration_preparation_fee;
     }
 
-    // Display result
-    document.getElementById('result').innerHTML = `
-        <h5>შედეგი:</h5>
-        <ul>
-            <li>ყიდვის ფასი: <span class="price_clean">${priceGEL.toFixed(2)} ₾</span></li>
-            <li>ჩამოტანა: <span class="price_add">${deliveryCostGEL.toFixed(2)} ₾</span></li>
-            <li>დღგ (18%): <span class="price_add">${vat.toFixed(2)} ₾</span></li>
-            <li>სახაზინო გადასახადი: <span class="price_add">${priceGEL >= 300 ? '20.00' : '0.00'} ₾</span></li>
-            <li id="price_whole"><strong>სულ: ${totalCostGEL.toFixed(2)} ₾</strong></li>
-        </ul>
-        <p>გამოყენებული კურსი: ${exchangeRate.toFixed(4)} GEL/USD</p>
+    // HTML Template for Results
+    resultContainer.innerHTML = `
+        <div class="space-y-3">
+            <div class="flex justify-between items-center text-gray-400">
+                <span>ნივთის ღირებულება:</span>
+                <span class="text-emerald-400 font-medium">${priceGEL.toFixed(2)} ₾</span>
+            </div>
+            
+            <div class="flex justify-between items-center text-gray-400">
+                <span>ტრანსპორტირება (${weightKG.toFixed(2)} კგ):</span>
+                <span class="text-amber-400 font-medium">${deliveryCostGEL.toFixed(2)} ₾</span>
+            </div>
+
+            ${vat > 0 ? `
+            <div class="p-3 bg-red-500/10 rounded-lg border border-red-500/20 space-y-2 mt-2">
+                <div class="flex justify-between items-center text-gray-300 text-sm">
+                    <span>დღგ (18%):</span>
+                    <span class="text-red-300">${vat.toFixed(2)} ₾</span>
+                </div>
+                <div class="flex justify-between items-center text-gray-300 text-sm">
+                    <span>განბაჟების საფასური:</span>
+                    <span class="text-red-300">${treasury.toFixed(2)} ₾</span>
+                </div>
+                <div class="flex justify-between items-center text-gray-300 text-sm">
+                    <span>დეკლარაციის მომზადება:</span>
+                    <span class="text-red-300">${declaration_preparation_fee.toFixed(2)} ₾</span>
+                </div>
+            </div>
+            ` : `
+            <div class="text-xs text-emerald-500/80 text-right mt-1">
+                *განბაჟება არ გიწევთ
+            </div>
+            `}
+
+            <div class="h-px bg-gray-700 my-4"></div>
+
+            <div class="flex justify-between items-center">
+                <span class="text-lg font-bold text-white">სულ გადასახდელი:</span>
+                <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-green-300">
+                    ${totalCostGEL.toFixed(2)} ₾
+                </span>
+            </div>
+            
+            <div class="text-xs text-center text-gray-600 mt-4">
+                კურსი: ${exchangeRate.toFixed(4)} GEL/USD
+            </div>
+        </div>
     `;
 });
