@@ -136,7 +136,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
                 </div>
 
                 <div class="bg-white/5 rounded-xl p-3 border border-white/10 mt-4 space-y-3">
-                    <input type="text" id="saveTitle" placeholder="ნივთის სახელი..." 
+                    <input type="text" id="saveTitle" placeholder="ნივთის დასახელება..." 
                         class="bg-brand-bg border border-brand-border text-white text-xs rounded-lg block w-full p-2 outline-none focus:border-brand-lime mb-2">
                     
                     <input type="text" id="saveUrl" placeholder="ლინკი (არასავალდებულო)..." 
@@ -193,7 +193,8 @@ document.getElementById('calculate').addEventListener('click', async () => {
     // --- SHARE BUTTON ---
     document.getElementById('btnShareResult').addEventListener('click', () => {
         const textToShare = `
-📦 განბაჟების კალკულატორი
+📦 ჩამოტანის კალკულატორი
+https://ahhhnuki.github.io/AhhhNuki/amazon/
 ------------------
 ნივთი: $${priceUSD}
 წონა: ${chargeableWeightKG.toFixed(2)} kg
