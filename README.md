@@ -1,6 +1,6 @@
 ## Hi there 👋
 
-[Amazon To Geo price](https://ahhhnuki.github.io/AhhhNuki/amazon/)
+[transp-calc](https://ahhhnuki.github.io/AhhhNuki/transp-calc)
 
 <!--
 **AhhhNuki/AhhhNuki** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
