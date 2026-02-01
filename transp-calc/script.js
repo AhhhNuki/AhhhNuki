@@ -194,7 +194,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
     document.getElementById('btnShareResult').addEventListener('click', () => {
         const textToShare = `
 📦 ჩამოტანის კალკულატორი
-https://ahhhnuki.github.io/AhhhNuki/amazon
+https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ------------------
 ნივთი: $${priceUSD}
 წონა: ${chargeableWeightKG.toFixed(2)} kg
