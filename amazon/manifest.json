@@ -1,6 +1,6 @@
 {
-  "name": "განბაჟების კალკულატორი",
-  "short_name": "Calc",
+  "name": "ჩამოტანის კალკულატორი",
+  "short_name": "ტრანსპ. კალკ",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#05050F",
