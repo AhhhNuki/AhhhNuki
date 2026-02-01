@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#05050F">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+    
     <link rel="shortcut icon" href="assets/favicon.ico" />
     <title>განბაჟების კალკულატორი</title>
 
@@ -33,11 +37,21 @@
     
     <script src="list.js" defer></script>
     <script src="script.js" defer></script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('SW Registered!', reg.scope))
+                    .catch(err => console.log('SW Failed:', err));
+            });
+        }
+    </script>
 </head>
 <body class="bg-brand-bg text-white min-h-screen p-4 flex flex-col items-center">
 
-    <div class="max-w-5xl w-full my-10">
-        <div class="mb-10 text-center lg:text-left">
+    <div class="max-w-5xl w-full my-5 md:my-10">
+        <div class="mb-8 text-center lg:text-left">
             <h1 class="text-3xl md:text-5xl font-bold text-white mb-2 tracking-tight">
                 განბაჟების კალკულატორი
             </h1>
@@ -47,7 +61,8 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
             
             <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl">
-                <div class="mb-6">
+                
+                <div class="mb-5">
                     <label class="block text-sm font-medium text-brand-text-muted mb-2">ნივთის ფასი (USD)</label>
                     <div class="relative group">
                         <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-lime transition-colors">$</span>
@@ -56,27 +71,60 @@
                     </div>
                 </div>
 
-                <div class="mb-6">
+                <div class="mb-5">
                     <label class="block text-sm font-medium text-brand-text-muted mb-2">წონა</label>
-                    <input type="number" id="weight" placeholder="მაგ: 2.5" 
-                        class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none transition-all text-white placeholder-gray-600">
+                    <div class="flex gap-4 mb-3">
+                        <input type="number" id="weight" placeholder="მაგ: 2.5" 
+                            class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none transition-all text-white placeholder-gray-600">
+                        
+                        <select id="weightUnit" class="bg-brand-input border border-brand-border rounded-xl px-2 text-white focus:ring-1 focus:ring-brand-lime outline-none text-sm w-24">
+                            <option value="pounds">Lbs</option>
+                            <option value="kilograms" selected>Kg</option>
+                            <option value="ounces">Oz</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center space-x-2 cursor-pointer w-fit">
+                            <input type="checkbox" id="toggleVolumetric" class="accent-brand-lime w-4 h-4">
+                            <span class="text-sm text-gray-400">მოცულობითი წონის დათვლა</span>
+                        </label>
+                        
+                        <div id="volumetricInputs" class="hidden grid grid-cols-3 gap-2 mt-3 p-3 bg-brand-input/50 rounded-xl border border-brand-border border-dashed">
+                            <div>
+                                <label class="text-xs text-gray-500 block mb-1">სიგრძე (cm)</label>
+                                <input type="number" id="dimL" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500 block mb-1">სიგანე (cm)</label>
+                                <input type="number" id="dimW" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500 block mb-1">სიმაღლე (cm)</label>
+                                <input type="number" id="dimH" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-brand-text-muted mb-2">ზომის ერთეული</label>
-                    <div class="grid grid-cols-3 gap-2 p-1 bg-brand-input rounded-xl border border-brand-border">
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="weightUnit" value="ounces" class="peer sr-only">
-                            <div class="text-center py-2 rounded-lg text-gray-400 peer-checked:bg-brand-border peer-checked:text-brand-lime transition-all hover:text-white z-10 relative">Ounces</div>
-                        </label>
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="weightUnit" value="pounds" class="peer sr-only">
-                            <div class="text-center py-2 rounded-lg text-gray-400 peer-checked:bg-brand-border peer-checked:text-brand-lime transition-all hover:text-white z-10 relative">Pounds</div>
-                        </label>
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="weightUnit" value="kilograms" class="peer sr-only" checked>
-                            <div class="text-center py-2 rounded-lg text-gray-400 peer-checked:bg-brand-border peer-checked:text-brand-lime transition-all hover:text-white z-10 relative">KG</div>
-                        </label>
+                <hr class="border-brand-border my-6">
+
+                <div class="mb-5">
+                    <label class="block text-sm font-medium text-brand-text-muted mb-2">გადამზიდი კომპანია</label>
+                    <select id="forwarderSelect" class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 text-white focus:ring-1 focus:ring-brand-lime outline-none">
+                        <option value="9.00">USA2GEORGIA ($9.00/kg)</option>
+                        <option value="8.35">Camex ($8.35/kg)</option>
+                        <option value="8.50" selected>Inex ($8.50/kg)</option>
+                        <option value="8.62">სხვა / საშუალო ($8.62/kg)</option>
+                        <option value="custom">სხვა (მითითება...)</option>
+                    </select>
+                    
+                    <div id="customShippingInputWrapper" class="hidden mt-2">
+                         <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <input type="number" id="customShippingRate" placeholder="ტრანსპორტირების ტარიფი ($/kg)" 
+                                class="w-full bg-brand-input border border-brand-border rounded-xl py-3 pl-8 pr-4 text-sm focus:ring-1 focus:ring-brand-lime outline-none text-white">
+                        </div>
                     </div>
                 </div>
 
@@ -101,14 +149,13 @@
             </div>
         </div>
 
-        <div>
+        <div class="w-full">
             <h3 class="text-2xl font-bold text-white mb-6 pl-2 border-l-4 border-brand-lime">
                 შენახული ნივთები
             </h3>
             <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 </div>
         </div>
-
     </div>
 </body>
 </html>

@@ -1,0 +1,20 @@
+{
+  "name": "განბაჟების კალკულატორი",
+  "short_name": "Calc",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#05050F",
+  "theme_color": "#05050F",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
