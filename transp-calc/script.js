@@ -8,6 +8,20 @@ toggleVolumetric.addEventListener('change', (e) => {
     volumetricInputs.classList.toggle('hidden', !e.target.checked);
 });
 
+async function fetchExchangeRate(customRate) {
+    if (!isNaN(customRate) && customRate > 0) {
+        return customRate;
+    }
+    try {
+        const response = await fetch('https://v6.exchangerate-api.com/v6/e29b3b7ef3b8216203343e73/latest/USD');
+        const data = await response.json();
+        return data.conversion_rates?.GEL || 2.77;
+    } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        return 2.77;
+    }
+}
+
 // --- MAIN CALCULATOR LOGIC ---
 document.getElementById('calculate').addEventListener('click', async () => {
     // 1. Inputs
@@ -215,7 +229,7 @@ ${hasTax ? `გადასახადები: ${(vat + treasury_fee + declar
 // --- MEMORY LOGIC ---
 
 // 1. Load settings when page opens
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const savedForwarder = localStorage.getItem('calc_forwarder');
     const savedCustomRate = localStorage.getItem('calc_custom_rate');
 
@@ -228,6 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('customShippingRate').value = savedCustomRate;
             }
         }
+    }
+    const customRateInput = document.getElementById('customRate');
+    const defaultRate = await fetchExchangeRate(parseFloat(savedCustomRate));
+    if (customRateInput && (isNaN(parseFloat(savedCustomRate)) || parseFloat(savedCustomRate) <= 0)) {
+        customRateInput.placeholder = `ავტომატური (${defaultRate.toFixed(4)})`;
     }
 });
 
