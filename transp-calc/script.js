@@ -207,7 +207,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
     // --- SHARE BUTTON ---
     document.getElementById('btnShareResult').addEventListener('click', () => {
         const textToShare = `
-📦 ჩამოტანის კალკულატორი
+📦 ტრანსპორტირების კალკულატორი
 https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ------------------
 ნივთი: $${priceUSD}
