@@ -1,6 +1,6 @@
 {
   "name": "ჩამოტანის კალკულატორი",
-  "short_name": "ტრანსპ. კალკ",
+  "short_name": "ჩამოტანის კალკულატორი",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#05050F",
@@ -16,5 +16,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "dir": "rtl",
+  "lang": "ka",
+  "orientation": "portrait",
+  "description": "ონლაინ კალკულატორი ტრანსპორტირებისა და განბაჟების საფასურის გამოსათვლელად. ითვლის მოცულობით წონას, საბაჟო დღგ-ს და სხვა ხარჯებს.",
+  "id": "M3H1LNRYWT"
 }
