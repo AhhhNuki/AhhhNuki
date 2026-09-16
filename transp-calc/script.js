@@ -111,6 +111,11 @@ async function loadForwardersData() {
 const toggleVolumetric = document.getElementById('toggleVolumetric');
 const volumetricInputs = document.getElementById('volumetricInputs');
 const forwarderSelect = document.getElementById('forwarderSelect');
+const customDropdownWrapper = document.getElementById('customDropdownWrapper');
+const customSelectTrigger = document.getElementById('customSelectTrigger');
+const customSelectTriggerContent = document.getElementById('customSelectTriggerContent');
+const customSelectMenu = document.getElementById('customSelectMenu');
+const customSelectArrow = document.getElementById('customSelectArrow');
 const customShippingInputWrapper = document.getElementById('customShippingInputWrapper');
 const forwarderRateInfo = document.getElementById('forwarderRateInfo');
 const rateBadgeContainer = document.getElementById('rateBadgeContainer');
@@ -145,7 +150,118 @@ async function fetchExchangeRate(customRate) {
     }
 }
 
-// --- POPULATE FORWARDERS SELECT & STATUS PILL ---
+// --- CUSTOM DROPDOWN & SELECT LOGIC ---
+
+function updateCustomSelectDisplay(selectedId) {
+    if (!customSelectTriggerContent) return;
+
+    if (selectedId === 'custom') {
+        customSelectTriggerContent.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="font-medium text-white">სხვა</span>
+                <span class="text-xs text-gray-400">(ინდივიდუალური ტარიფი)</span>
+            </div>
+        `;
+        return;
+    }
+
+    const f = forwardersList.find(item => item.id === selectedId);
+    if (!f) {
+        customSelectTriggerContent.innerHTML = `<span class="text-gray-400">აირჩიეთ გადამზიდი</span>`;
+        return;
+    }
+
+    const diff = +(f.currentRate - (f.previousRate != null ? f.previousRate : f.currentRate)).toFixed(2);
+
+    let badge = '';
+    if (diff > 0) {
+        badge = `<span class="text-xs font-bold text-red-400 bg-red-950/80 border border-red-800/60 px-2 py-0.5 rounded ml-auto flex items-center gap-1 shadow-sm">▲ +$${diff.toFixed(2)}</span>`;
+    } else if (diff < 0) {
+        badge = `<span class="text-xs font-bold text-brand-lime bg-lime-950/80 border border-brand-lime/60 px-2 py-0.5 rounded ml-auto flex items-center gap-1 shadow-sm">▼ -$${Math.abs(diff).toFixed(2)}</span>`;
+    }
+
+    customSelectTriggerContent.innerHTML = `
+        <div class="flex items-center gap-2">
+            <span class="font-medium text-white">${f.name}</span>
+            <span class="text-xs text-gray-400">($${f.currentRate.toFixed(2)}/kg)</span>
+        </div>
+        ${badge}
+    `;
+}
+
+function renderCustomDropdown(selectedId) {
+    if (!customSelectMenu) return;
+
+    customSelectMenu.innerHTML = '';
+
+    forwardersList.forEach(f => {
+        const isSelected = f.id === selectedId;
+        const diff = +(f.currentRate - (f.previousRate != null ? f.previousRate : f.currentRate)).toFixed(2);
+
+        let badge = '';
+        if (diff > 0) {
+            badge = `<span class="text-xs font-bold text-red-400 bg-red-950/80 border border-red-800/60 px-2 py-0.5 rounded flex items-center gap-1">▲ +$${diff.toFixed(2)}</span>`;
+        } else if (diff < 0) {
+            badge = `<span class="text-xs font-bold text-brand-lime bg-lime-950/80 border border-brand-lime/60 px-2 py-0.5 rounded flex items-center gap-1">▼ -$${Math.abs(diff).toFixed(2)}</span>`;
+        }
+
+        const item = document.createElement('div');
+        item.className = `px-3.5 py-2.5 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-brand-input transition-colors ${isSelected ? 'bg-brand-input/90 border border-brand-lime/40 text-brand-lime' : 'text-gray-200'}`;
+        item.dataset.value = f.id;
+        item.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="font-medium ${isSelected ? 'text-brand-lime' : 'text-white'}">${f.name}</span>
+                <span class="text-xs text-gray-400">($${f.currentRate.toFixed(2)}/kg)</span>
+            </div>
+            ${badge}
+        `;
+
+        item.addEventListener('click', () => {
+            forwarderSelect.value = f.id;
+            forwarderSelect.dispatchEvent(new Event('change'));
+            customSelectMenu.classList.add('hidden');
+            if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+        });
+
+        customSelectMenu.appendChild(item);
+    });
+
+    // Custom option
+    const isCustom = selectedId === 'custom';
+    const customItem = document.createElement('div');
+    customItem.className = `px-3.5 py-2.5 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-brand-input transition-colors ${isCustom ? 'bg-brand-input/90 border border-brand-lime/40 text-brand-lime' : 'text-gray-300'}`;
+    customItem.dataset.value = 'custom';
+    customItem.innerHTML = `
+        <span class="font-medium">სხვა (მითითება...)</span>
+        <span class="text-xs text-gray-500">ინდივიდუალური</span>
+    `;
+    customItem.addEventListener('click', () => {
+        forwarderSelect.value = 'custom';
+        forwarderSelect.dispatchEvent(new Event('change'));
+        customSelectMenu.classList.add('hidden');
+        if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+    });
+    customSelectMenu.appendChild(customItem);
+
+    updateCustomSelectDisplay(selectedId);
+}
+
+// Setup custom dropdown toggle & outside click listener
+if (customSelectTrigger && customSelectMenu) {
+    customSelectTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = customSelectMenu.classList.contains('hidden');
+        customSelectMenu.classList.toggle('hidden', !isHidden);
+        if (customSelectArrow) customSelectArrow.classList.toggle('rotate-180', isHidden);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (customDropdownWrapper && !customDropdownWrapper.contains(e.target)) {
+            customSelectMenu.classList.add('hidden');
+            if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+        }
+    });
+}
 
 function populateForwardersSelect(selectedId) {
     if (!forwarderSelect) return;
@@ -156,9 +272,9 @@ function populateForwardersSelect(selectedId) {
         const diff = +(f.currentRate - (f.previousRate != null ? f.previousRate : f.currentRate)).toFixed(2);
         let indicator = '';
         if (diff > 0) {
-            indicator = ` 🔺 +$${diff.toFixed(2)}`;
+            indicator = ` ▲ +$${diff.toFixed(2)}`;
         } else if (diff < 0) {
-            indicator = ` 🔻 -$${Math.abs(diff).toFixed(2)}`;
+            indicator = ` ▼ -$${Math.abs(diff).toFixed(2)}`;
         }
 
         const opt = document.createElement('option');
@@ -174,6 +290,7 @@ function populateForwardersSelect(selectedId) {
     if (selectedId === 'custom') customOpt.selected = true;
     forwarderSelect.appendChild(customOpt);
 
+    renderCustomDropdown(selectedId);
     updateForwarderRateStatusPill(forwarderSelect.value);
 }
 
@@ -205,7 +322,7 @@ function updateForwarderRateStatusPill(forwarderId) {
     if (diff > 0) {
         badgeHtml = `
             <span class="inline-flex items-center gap-1 text-red-400 bg-red-950/70 border border-red-800/60 px-2 py-0.5 rounded font-semibold text-[11px]">
-                🔺 გაძვირდა +$${diff.toFixed(2)} (+${pct}%)
+                ▲ გაძვირდა +$${diff.toFixed(2)} (+${pct}%)
             </span>
             <span class="text-gray-400 text-[11px] hidden sm:inline">წინა: $${prev.toFixed(2)}</span>
             <span class="text-gray-500 text-[11px]">• ${forwarder.lastUpdated}</span>
@@ -213,7 +330,7 @@ function updateForwarderRateStatusPill(forwarderId) {
     } else if (diff < 0) {
         badgeHtml = `
             <span class="inline-flex items-center gap-1 text-brand-lime bg-lime-950/70 border border-brand-lime/40 px-2 py-0.5 rounded font-semibold text-[11px]">
-                🔻 გაიაფდა -$${Math.abs(diff).toFixed(2)} (-${pct}%)
+                ▼ გაიაფდა -$${Math.abs(diff).toFixed(2)} (-${pct}%)
             </span>
             <span class="text-gray-400 text-[11px] hidden sm:inline">წინა: $${prev.toFixed(2)}</span>
             <span class="text-gray-500 text-[11px]">• ${forwarder.lastUpdated}</span>
@@ -262,11 +379,11 @@ function renderTrackerModal(filter = 'all') {
 
         if (diff > 0) {
             badgeClass = 'text-red-400 bg-red-950/60 border-red-800/50';
-            badgeText = `🔺 +$${diff.toFixed(2)} (+${pct}%)`;
+            badgeText = `▲ +$${diff.toFixed(2)} (+${pct}%)`;
             diffText = `გაძვირდა +$${diff.toFixed(2)}`;
         } else if (diff < 0) {
             badgeClass = 'text-brand-lime bg-lime-950/60 border-brand-lime/40';
-            badgeText = `🔻 -$${Math.abs(diff).toFixed(2)} (-${pct}%)`;
+            badgeText = `▼ -$${Math.abs(diff).toFixed(2)} (-${pct}%)`;
             diffText = `დაკლდა -$${Math.abs(diff).toFixed(2)}`;
         }
 
@@ -274,8 +391,8 @@ function renderTrackerModal(filter = 'all') {
             const hDiff = h.change || 0;
             let icon = '⚪';
             let color = 'text-gray-400';
-            if (hDiff > 0) { icon = '🔺'; color = 'text-red-400'; }
-            else if (hDiff < 0) { icon = '🔻'; color = 'text-brand-lime'; }
+            if (hDiff > 0) { icon = '▲'; color = 'text-red-400'; }
+            else if (hDiff < 0) { icon = '▼'; color = 'text-brand-lime'; }
 
             return `
                 <div class="flex items-start justify-between gap-2 py-2 border-b border-brand-border/40 last:border-b-0 text-xs">
@@ -697,6 +814,7 @@ forwarderSelect.addEventListener('change', (e) => {
         customShippingInputWrapper.classList.add('hidden');
     }
 
+    renderCustomDropdown(value);
     updateForwarderRateStatusPill(value);
 });
 
