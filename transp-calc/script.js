@@ -457,12 +457,23 @@ function renderTrackerModal(filter = 'all') {
 function setActiveTrackerFilter(activeFilter) {
     document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
         const isActive = btn.dataset.filter === activeFilter;
+        const arrow = btn.querySelector('.tab-arrow');
+
         if (isActive) {
             btn.classList.add('bg-brand-lime', 'text-black', 'font-semibold', 'border-brand-lime');
             btn.classList.remove('bg-brand-input', 'text-gray-300', 'border-brand-border');
+            if (arrow) {
+                arrow.classList.remove('text-red-400', 'text-brand-lime');
+                arrow.classList.add('text-black');
+            }
         } else {
             btn.classList.add('bg-brand-input', 'text-gray-300', 'border-brand-border');
             btn.classList.remove('bg-brand-lime', 'text-black', 'font-semibold', 'border-brand-lime');
+            if (arrow) {
+                arrow.classList.remove('text-black');
+                if (btn.dataset.filter === 'up') arrow.classList.add('text-red-400');
+                if (btn.dataset.filter === 'down') arrow.classList.add('text-brand-lime');
+            }
         }
     });
 }
