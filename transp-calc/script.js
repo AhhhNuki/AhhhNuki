@@ -416,8 +416,6 @@ function checkRecentRateChanges() {
 
         if (btnAlertOpenTracker) {
             btnAlertOpenTracker.onclick = () => {
-                localStorage.setItem('calc_seen_rates_sig', currentSig);
-                rateAlertBanner.classList.add('hidden');
                 openTrackerModal();
             };
         }
