@@ -453,6 +453,20 @@ function renderTrackerModal(filter = 'all') {
     }).join('');
 }
 
+
+function setActiveTrackerFilter(activeFilter) {
+    document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
+        const isActive = btn.dataset.filter === activeFilter;
+        if (isActive) {
+            btn.classList.add('bg-brand-lime', 'text-black', 'font-semibold', 'border-brand-lime');
+            btn.classList.remove('bg-brand-input', 'text-gray-300', 'border-brand-border');
+        } else {
+            btn.classList.add('bg-brand-input', 'text-gray-300', 'border-brand-border');
+            btn.classList.remove('bg-brand-lime', 'text-black', 'font-semibold', 'border-brand-lime');
+        }
+    });
+}
+
 // Modal open/close helpers
 function openTrackerModal(focusId = null) {
     if (!priceTrackerModal) return;
@@ -461,13 +475,7 @@ function openTrackerModal(focusId = null) {
     document.body.classList.add('overflow-hidden');
 
     // Reset active filter button style
-    document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
-        if (btn.dataset.filter === 'all') {
-            btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-lime text-black font-semibold transition-colors';
-        } else {
-            btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors';
-        }
-    });
+    setActiveTrackerFilter('all');
 }
 
 function closeTrackerModal() {
@@ -503,10 +511,7 @@ document.addEventListener('keydown', (e) => {
 // Modal filter tabs
 document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.tracker-filter-btn').forEach(b => {
-            b.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors';
-        });
-        btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-lime text-black font-semibold transition-colors';
+        setActiveTrackerFilter(btn.dataset.filter);
         renderTrackerModal(btn.dataset.filter);
     });
 });
