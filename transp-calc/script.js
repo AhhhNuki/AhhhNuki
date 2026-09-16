@@ -64,13 +64,14 @@ const DEFAULT_FORWARDERS = [
     {
         id: "spacecargo",
         name: "Space Cargo",
-        currentRate: 8.00,
+        currentRate: 9.88,
         previousRate: 8.00,
-        lastUpdated: "2024-01-01",
+        lastUpdated: "2026-09-16",
         currency: "USD",
         unit: "kg",
         website: "https://spacecargo.ge",
         history: [
+            { date: "2026-09-16", rate: 9.88, change: 1.88, direction: "up", note: "ტარიფის გაძვირება ($8.00 ➔ $9.88)" },
             { date: "2024-01-01", rate: 8.00, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი ($8.00)" }
         ]
     },
