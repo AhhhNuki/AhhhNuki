@@ -23,17 +23,18 @@ jobs:
           node-version: 20
 
       - name: Run Scraper
+        working-directory: transp-calc
         run: node scripts/scrape-rates.js
 
       - name: Commit and push changes if rates changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action [Rate Bot]"
-          if [ -n "$(git status --porcelain data/forwarders.json)" ]; then
-            echo "Changes detected in data/forwarders.json. Committing and pushing..."
-            git add data/forwarders.json
+          if [ -n "$(git status --porcelain transp-calc/data/forwarders.json)" ]; then
+            echo "Changes detected in transp-calc/data/forwarders.json. Committing and pushing..."
+            git add transp-calc/data/forwarders.json
             git commit -m "🤖 Auto-update forwarder rates [skip ci]"
             git push
           else
-            echo "No changes in data/forwarders.json. Nothing to commit."
+            echo "No changes in transp-calc/data/forwarders.json. Nothing to commit."
           fi
