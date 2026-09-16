@@ -1,9 +1,10 @@
-const CACHE_NAME = 'calc-app-v1';
+const CACHE_NAME = 'calc-app-v2';
 const ASSETS = [
     './',
     './index.html',
     './script.js',
     './list.js',
+    './data/forwarders.json',
     'https://cdn.tailwindcss.com',
     'https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@300;400;600;700&display=swap'
 ];

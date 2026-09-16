@@ -165,6 +165,28 @@
             <p class="text-brand-text-muted text-lg">ტრანსპორტირების კალკულატორი საშუალებას გაძლევთ გათვალოთ თქვენი ხარჯები წინასწარ</p>
         </div>
 
+        <!-- Recent Rate Change Alert Banner -->
+        <div id="rateAlertBanner" class="hidden mb-6 p-4 rounded-xl bg-brand-card border border-brand-lime/30 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+            <div class="flex items-center gap-3">
+                <span class="flex h-3 w-3 relative shrink-0">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-lime opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-brand-lime"></span>
+                </span>
+                <div>
+                    <span class="font-semibold text-white">ტარიფების ცვლილება: </span>
+                    <span id="rateAlertText" class="text-gray-300"></span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <button type="button" id="btnAlertOpenTracker" class="text-xs bg-brand-lime/20 text-brand-lime border border-brand-lime/40 px-3 py-1.5 rounded-lg hover:bg-brand-lime hover:text-black transition-colors font-medium">
+                    ცვლილებების ნახვა
+                </button>
+                <button type="button" id="btnDismissAlert" class="text-gray-400 hover:text-white px-2 py-1" title="დახურვა">
+                    ✕
+                </button>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
             
             <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl">
@@ -217,13 +239,31 @@
                 <hr class="border-brand-border my-6">
 
                 <div class="mb-5">
-                    <label class="block text-sm font-medium text-brand-text-muted mb-2">გადამზიდი კომპანია</label>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-brand-text-muted">გადამზიდი კომპანია</label>
+                        <button type="button" id="btnOpenPriceTracker" class="text-xs text-brand-lime hover:underline flex items-center gap-1 font-medium transition-colors cursor-pointer">
+                            <span>📊 ტარიფების ცვლილებები</span>
+                        </button>
+                    </div>
                     <select id="forwarderSelect" class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 text-white focus:ring-1 focus:ring-brand-lime outline-none">
-                        <option value="9.00">USA2GEORGIA ($9.00/kg)</option>
-                        <option value="8.35">Camex ($8.35/kg)</option>
-                        <option value="8.50" selected>Inex ($8.50/kg)</option>
+                        <option value="usa2georgia">USA2GEORGIA ($9.95/kg) 🔺 +$0.95</option>
+                        <option value="camex">Camex ($8.35/kg) 🔻 -$0.15</option>
+                        <option value="inex" selected>Inex ($9.70/kg) 🔺 +$1.20</option>
+                        <option value="maleo">Maleo ($8.50/kg)</option>
+                        <option value="spacecargo">Space Cargo ($8.00/kg)</option>
+                        <option value="kiwipost">KiwiPost ($8.00/kg)</option>
                         <option value="custom">სხვა (მითითება...)</option>
                     </select>
+
+                    <!-- Forwarder Rate Status Pill -->
+                    <div id="forwarderRateInfo" class="mt-2.5 p-2.5 rounded-xl bg-brand-input/80 border border-brand-border text-xs flex items-center justify-between text-gray-300 transition-all">
+                        <div class="flex items-center gap-2" id="rateBadgeContainer">
+                            <span class="text-gray-400">ინფორმაცია იტვირთება...</span>
+                        </div>
+                        <button type="button" id="btnViewSelectedHistory" class="text-brand-lime hover:underline text-[11px] ml-2 shrink-0 font-medium cursor-pointer">
+                            ისტორია ➔
+                        </button>
+                    </div>
                     
                     <div id="customShippingInputWrapper" class="hidden mt-2">
                          <div class="relative">
@@ -313,6 +353,53 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Price Tracker & History Modal -->
+    <div id="priceTrackerModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-brand-card border border-brand-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-brand-border flex items-center justify-between bg-brand-input/50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 rounded-xl bg-brand-lime/10 text-brand-lime border border-brand-lime/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg md:text-xl font-bold text-white">ტარიფების მონიტორინგი & ისტორია</h3>
+                        <p class="text-xs text-brand-text-muted">გადამზიდი კომპანიების ფასების ცვლილებების დეტალური ჟურნალი</p>
+                    </div>
+                </div>
+                <button type="button" id="btnCloseTrackerModal" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-brand-border transition-colors cursor-pointer" title="დახურვა">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="px-5 pt-3 pb-1 border-b border-brand-border/60 flex items-center gap-2 text-xs overflow-x-auto">
+                <button type="button" data-filter="all" class="tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-lime text-black font-semibold transition-colors">
+                    ყველა (6)
+                </button>
+                <button type="button" data-filter="up" class="tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors">
+                    🔺 გაძვირებული
+                </button>
+                <button type="button" data-filter="down" class="tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors">
+                    🔻 გაიაფებული
+                </button>
+            </div>
+
+            <!-- Modal Body (List of companies) -->
+            <div class="p-5 overflow-y-auto space-y-4 flex-grow" id="forwardersTrackerList">
+                <!-- Injected via script.js -->
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-brand-border bg-brand-input/40 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-brand-text-muted">
+                <span>* ტარიფები მოცემულია აშშ-დან საჰაერო გადაზიდვაზე ($ / კგ)</span>
+                <button type="button" id="btnCloseTrackerModalBtn" class="w-full sm:w-auto px-5 py-2 bg-brand-border hover:bg-white/10 text-white rounded-lg transition-colors font-medium cursor-pointer">
+                    დახურვა
+                </button>
+            </div>
+        </div>
     </div>
 </body>
 </html>

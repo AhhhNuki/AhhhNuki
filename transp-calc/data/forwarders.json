@@ -1,0 +1,165 @@
+[
+  {
+    "id": "usa2georgia",
+    "name": "USA2GEORGIA",
+    "currentRate": 9.95,
+    "previousRate": 9,
+    "lastUpdated": "2026-09-16",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://www.usa2georgia.com",
+    "history": [
+      {
+        "date": "2026-09-16",
+        "rate": 9.95,
+        "change": 0.95,
+        "direction": "up",
+        "note": "ტარიფის გაძვირება ($9.00 ➔ $9.95)"
+      },
+      {
+        "date": "2024-03-01",
+        "rate": 9,
+        "change": 0.5,
+        "direction": "up",
+        "note": "ტარიფი გაიზარდა $0.50-ით ($8.50 ➔ $9.00)"
+      },
+      {
+        "date": "2023-02-01",
+        "rate": 8.5,
+        "change": 0.5,
+        "direction": "up",
+        "note": "ტარიფი გაიზარდა $0.50-ით ($8.00 ➔ $8.50)"
+      },
+      {
+        "date": "2022-01-01",
+        "rate": 8,
+        "change": 0,
+        "direction": "initial",
+        "note": "ბაზისური საჰაერო ტარიფი"
+      }
+    ]
+  },
+  {
+    "id": "camex",
+    "name": "Camex",
+    "currentRate": 8.35,
+    "previousRate": 8.5,
+    "lastUpdated": "2024-02-15",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://camex.ge",
+    "history": [
+      {
+        "date": "2024-02-15",
+        "rate": 8.35,
+        "change": -0.15,
+        "direction": "down",
+        "note": "სპეციალური აქცია: ტარიფი შემცირდა $0.15-ით ($8.50 ➔ $8.35)"
+      },
+      {
+        "date": "2023-05-10",
+        "rate": 8.5,
+        "change": 0,
+        "direction": "initial",
+        "note": "სტანდარტული ტარიფი"
+      }
+    ]
+  },
+  {
+    "id": "inex",
+    "name": "Inex Group",
+    "currentRate": 9.7,
+    "previousRate": 8.5,
+    "lastUpdated": "2026-09-16",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://inex.ge",
+    "history": [
+      {
+        "date": "2026-09-16",
+        "rate": 9.7,
+        "change": 1.2,
+        "direction": "up",
+        "note": "ტარიფის გაძვირება ($8.50 ➔ $9.70)"
+      },
+      {
+        "date": "2024-01-10",
+        "rate": 8.5,
+        "change": 0,
+        "direction": "initial",
+        "note": "სტაბილური ტარიფი ($8.50)"
+      }
+    ]
+  },
+  {
+    "id": "maleo",
+    "name": "Maleo",
+    "currentRate": 8.5,
+    "previousRate": 8.5,
+    "lastUpdated": "2026-09-16",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://maleo.ge",
+    "history": [
+      {
+        "date": "2026-09-16",
+        "rate": 8.5,
+        "change": 0,
+        "direction": "unchanged",
+        "note": "ტარიფის დადასტურება"
+      },
+      {
+        "date": "2024-02-01",
+        "rate": 8.5,
+        "change": 0.5,
+        "direction": "up",
+        "note": "ტარიფი გაიზარდა $0.50-ით ($8.00 ➔ $8.50)"
+      },
+      {
+        "date": "2023-06-01",
+        "rate": 8,
+        "change": 0,
+        "direction": "initial",
+        "note": "სტანდარტული ტარიფი"
+      }
+    ]
+  },
+  {
+    "id": "spacecargo",
+    "name": "Space Cargo",
+    "currentRate": 8,
+    "previousRate": 8,
+    "lastUpdated": "2024-01-01",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://spacecargo.ge",
+    "history": [
+      {
+        "date": "2024-01-01",
+        "rate": 8,
+        "change": 0,
+        "direction": "initial",
+        "note": "სტანდარტული ტარიფი ($8.00)"
+      }
+    ]
+  },
+  {
+    "id": "kiwipost",
+    "name": "KiwiPost",
+    "currentRate": 8,
+    "previousRate": 8,
+    "lastUpdated": "2024-01-01",
+    "currency": "USD",
+    "unit": "kg",
+    "website": "https://kiwipost.ge",
+    "history": [
+      {
+        "date": "2024-01-01",
+        "rate": 8,
+        "change": 0,
+        "direction": "initial",
+        "note": "სტანდარტული ტარიფი ($8.00)"
+      }
+    ]
+  }
+]

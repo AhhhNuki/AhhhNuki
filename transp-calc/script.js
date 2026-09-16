@@ -1,13 +1,135 @@
-// Toggle UI elements
+// ==========================================
+// Freight Forwarding Rates & Tracking Data
+// ==========================================
+
+const DEFAULT_FORWARDERS = [
+    {
+        id: "usa2georgia",
+        name: "USA2GEORGIA",
+        currentRate: 9.95,
+        previousRate: 9.00,
+        lastUpdated: "2026-09-16",
+        currency: "USD",
+        unit: "kg",
+        website: "https://www.usa2georgia.com",
+        history: [
+            { date: "2026-09-16", rate: 9.95, change: 0.95, direction: "up", note: "ტარიფის გაძვირება ($9.00 ➔ $9.95)" },
+            { date: "2024-03-01", rate: 9.00, change: 0.50, direction: "up", note: "ტარიფი გაიზარდა $0.50-ით ($8.50 ➔ $9.00)" },
+            { date: "2023-02-01", rate: 8.50, change: 0.50, direction: "up", note: "ტარიფი გაიზარდა $0.50-ით ($8.00 ➔ $8.50)" },
+            { date: "2022-01-01", rate: 8.00, change: 0.00, direction: "initial", note: "ბაზისური საჰაერო ტარიფი" }
+        ]
+    },
+    {
+        id: "camex",
+        name: "Camex",
+        currentRate: 8.35,
+        previousRate: 8.50,
+        lastUpdated: "2024-02-15",
+        currency: "USD",
+        unit: "kg",
+        website: "https://camex.ge",
+        history: [
+            { date: "2024-02-15", rate: 8.35, change: -0.15, direction: "down", note: "სპეციალური აქცია: ტარიფი შემცირდა $0.15-ით ($8.50 ➔ $8.35)" },
+            { date: "2023-05-10", rate: 8.50, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი" }
+        ]
+    },
+    {
+        id: "inex",
+        name: "Inex Group",
+        currentRate: 9.70,
+        previousRate: 8.50,
+        lastUpdated: "2026-09-16",
+        currency: "USD",
+        unit: "kg",
+        website: "https://inex.ge",
+        history: [
+            { date: "2026-09-16", rate: 9.70, change: 1.20, direction: "up", note: "ტარიფის გაძვირება ($8.50 ➔ $9.70)" },
+            { date: "2024-01-10", rate: 8.50, change: 0.00, direction: "initial", note: "სტაბილური ტარიფი ($8.50)" }
+        ]
+    },
+    {
+        id: "maleo",
+        name: "Maleo",
+        currentRate: 8.50,
+        previousRate: 8.00,
+        lastUpdated: "2024-02-01",
+        currency: "USD",
+        unit: "kg",
+        website: "https://maleo.ge",
+        history: [
+            { date: "2024-02-01", rate: 8.50, change: 0.50, direction: "up", note: "ტარიფი გაიზარდა $0.50-ით ($8.00 ➔ $8.50)" },
+            { date: "2023-06-01", rate: 8.00, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი" }
+        ]
+    },
+    {
+        id: "spacecargo",
+        name: "Space Cargo",
+        currentRate: 8.00,
+        previousRate: 8.00,
+        lastUpdated: "2024-01-01",
+        currency: "USD",
+        unit: "kg",
+        website: "https://spacecargo.ge",
+        history: [
+            { date: "2024-01-01", rate: 8.00, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი ($8.00)" }
+        ]
+    },
+    {
+        id: "kiwipost",
+        name: "KiwiPost",
+        currentRate: 8.00,
+        previousRate: 8.00,
+        lastUpdated: "2024-01-01",
+        currency: "USD",
+        unit: "kg",
+        website: "https://kiwipost.ge",
+        history: [
+            { date: "2024-01-01", rate: 8.00, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი ($8.00)" }
+        ]
+    }
+];
+
+let forwardersList = [...DEFAULT_FORWARDERS];
+
+// Load fresh data from JSON file (with fallback)
+async function loadForwardersData() {
+    try {
+        const response = await fetch('./data/forwarders.json');
+        if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+                forwardersList = data;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not load data/forwarders.json via fetch, using bundled rates.', e);
+    }
+}
+
+// UI Elements
 const toggleVolumetric = document.getElementById('toggleVolumetric');
 const volumetricInputs = document.getElementById('volumetricInputs');
 const forwarderSelect = document.getElementById('forwarderSelect');
 const customShippingInputWrapper = document.getElementById('customShippingInputWrapper');
+const forwarderRateInfo = document.getElementById('forwarderRateInfo');
+const rateBadgeContainer = document.getElementById('rateBadgeContainer');
+const btnViewSelectedHistory = document.getElementById('btnViewSelectedHistory');
+const btnOpenPriceTracker = document.getElementById('btnOpenPriceTracker');
+const priceTrackerModal = document.getElementById('priceTrackerModal');
+const btnCloseTrackerModal = document.getElementById('btnCloseTrackerModal');
+const btnCloseTrackerModalBtn = document.getElementById('btnCloseTrackerModalBtn');
+const forwardersTrackerList = document.getElementById('forwardersTrackerList');
+const rateAlertBanner = document.getElementById('rateAlertBanner');
+const rateAlertText = document.getElementById('rateAlertText');
+const btnAlertOpenTracker = document.getElementById('btnAlertOpenTracker');
+const btnDismissAlert = document.getElementById('btnDismissAlert');
 
+// Volumetric Toggle
 toggleVolumetric.addEventListener('change', (e) => {
     volumetricInputs.classList.toggle('hidden', !e.target.checked);
 });
 
+// Fetch USD to GEL exchange rate
 async function fetchExchangeRate(customRate) {
     if (!isNaN(customRate) && customRate > 0) {
         return customRate;
@@ -22,7 +144,295 @@ async function fetchExchangeRate(customRate) {
     }
 }
 
+// --- POPULATE FORWARDERS SELECT & STATUS PILL ---
+
+function populateForwardersSelect(selectedId) {
+    if (!forwarderSelect) return;
+
+    forwarderSelect.innerHTML = '';
+
+    forwardersList.forEach((f) => {
+        const diff = +(f.currentRate - (f.previousRate != null ? f.previousRate : f.currentRate)).toFixed(2);
+        let indicator = '';
+        if (diff > 0) {
+            indicator = ` 🔺 +$${diff.toFixed(2)}`;
+        } else if (diff < 0) {
+            indicator = ` 🔻 -$${Math.abs(diff).toFixed(2)}`;
+        }
+
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = `${f.name} ($${f.currentRate.toFixed(2)}/kg)${indicator}`;
+        if (f.id === selectedId) opt.selected = true;
+        forwarderSelect.appendChild(opt);
+    });
+
+    const customOpt = document.createElement('option');
+    customOpt.value = 'custom';
+    customOpt.textContent = 'სხვა (მითითება...)';
+    if (selectedId === 'custom') customOpt.selected = true;
+    forwarderSelect.appendChild(customOpt);
+
+    updateForwarderRateStatusPill(forwarderSelect.value);
+}
+
+function updateForwarderRateStatusPill(forwarderId) {
+    if (!rateBadgeContainer) return;
+
+    if (forwarderId === 'custom') {
+        rateBadgeContainer.innerHTML = `
+            <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700 font-medium">ხელით მითითებული</span>
+            <span class="text-gray-500">ინდივიდუალური ტარიფი</span>
+        `;
+        if (btnViewSelectedHistory) btnViewSelectedHistory.classList.add('hidden');
+        return;
+    }
+
+    if (btnViewSelectedHistory) btnViewSelectedHistory.classList.remove('hidden');
+
+    const forwarder = forwardersList.find(f => f.id === forwarderId);
+    if (!forwarder) {
+        rateBadgeContainer.innerHTML = `<span class="text-gray-400">ინფორმაცია არ არის</span>`;
+        return;
+    }
+
+    const prev = forwarder.previousRate != null ? forwarder.previousRate : forwarder.currentRate;
+    const diff = +(forwarder.currentRate - prev).toFixed(2);
+    const pct = prev > 0 ? Math.abs((diff / prev) * 100).toFixed(1) : '0.0';
+
+    let badgeHtml = '';
+    if (diff > 0) {
+        badgeHtml = `
+            <span class="inline-flex items-center gap-1 text-red-400 bg-red-950/70 border border-red-800/60 px-2 py-0.5 rounded font-semibold text-[11px]">
+                🔺 გაძვირდა +$${diff.toFixed(2)} (+${pct}%)
+            </span>
+            <span class="text-gray-400 text-[11px] hidden sm:inline">წინა: $${prev.toFixed(2)}</span>
+            <span class="text-gray-500 text-[11px]">• ${forwarder.lastUpdated}</span>
+        `;
+    } else if (diff < 0) {
+        badgeHtml = `
+            <span class="inline-flex items-center gap-1 text-brand-lime bg-lime-950/70 border border-brand-lime/40 px-2 py-0.5 rounded font-semibold text-[11px]">
+                🔻 გაიაფდა -$${Math.abs(diff).toFixed(2)} (-${pct}%)
+            </span>
+            <span class="text-gray-400 text-[11px] hidden sm:inline">წინა: $${prev.toFixed(2)}</span>
+            <span class="text-gray-500 text-[11px]">• ${forwarder.lastUpdated}</span>
+        `;
+    } else {
+        badgeHtml = `
+            <span class="inline-flex items-center gap-1 text-gray-300 bg-gray-800/80 border border-gray-700 px-2 py-0.5 rounded text-[11px]">
+                ⚪ სტაბილური ტარიფი ($${forwarder.currentRate.toFixed(2)})
+            </span>
+            <span class="text-gray-500 text-[11px]">• ${forwarder.lastUpdated}</span>
+        `;
+    }
+
+    rateBadgeContainer.innerHTML = badgeHtml;
+}
+
+// --- PRICE TRACKER MODAL RENDERING ---
+
+function renderTrackerModal(filter = 'all') {
+    if (!forwardersTrackerList) return;
+
+    let filtered = forwardersList;
+    if (filter === 'up') {
+        filtered = forwardersList.filter(f => (f.currentRate - (f.previousRate || f.currentRate)) > 0);
+    } else if (filter === 'down') {
+        filtered = forwardersList.filter(f => (f.currentRate - (f.previousRate || f.currentRate)) < 0);
+    }
+
+    if (filtered.length === 0) {
+        forwardersTrackerList.innerHTML = `
+            <div class="col-span-full py-10 text-center text-gray-500 text-sm">
+                ამ კატეგორიაში მონაცემები არ არის
+            </div>
+        `;
+        return;
+    }
+
+    forwardersTrackerList.innerHTML = filtered.map(f => {
+        const prev = f.previousRate != null ? f.previousRate : f.currentRate;
+        const diff = +(f.currentRate - prev).toFixed(2);
+        const pct = prev > 0 ? Math.abs((diff / prev) * 100).toFixed(1) : '0.0';
+
+        let badgeClass = 'text-gray-300 bg-gray-800/80 border-gray-700';
+        let badgeText = '⚪ უცვლელი';
+        let diffText = `$${f.currentRate.toFixed(2)}`;
+
+        if (diff > 0) {
+            badgeClass = 'text-red-400 bg-red-950/60 border-red-800/50';
+            badgeText = `🔺 +$${diff.toFixed(2)} (+${pct}%)`;
+            diffText = `გაძვირდა +$${diff.toFixed(2)}`;
+        } else if (diff < 0) {
+            badgeClass = 'text-brand-lime bg-lime-950/60 border-brand-lime/40';
+            badgeText = `🔻 -$${Math.abs(diff).toFixed(2)} (-${pct}%)`;
+            diffText = `დაკლდა -$${Math.abs(diff).toFixed(2)}`;
+        }
+
+        const historyItems = (f.history || []).map(h => {
+            const hDiff = h.change || 0;
+            let icon = '⚪';
+            let color = 'text-gray-400';
+            if (hDiff > 0) { icon = '🔺'; color = 'text-red-400'; }
+            else if (hDiff < 0) { icon = '🔻'; color = 'text-brand-lime'; }
+
+            return `
+                <div class="flex items-start justify-between gap-2 py-2 border-b border-brand-border/40 last:border-b-0 text-xs">
+                    <div>
+                        <div class="flex items-center gap-1.5 font-medium text-white">
+                            <span>${icon}</span>
+                            <span>$${h.rate.toFixed(2)} / კგ</span>
+                            <span class="${color}">(${hDiff >= 0 ? '+' : ''}${hDiff.toFixed(2)})</span>
+                        </div>
+                        <p class="text-[11px] text-brand-text-muted mt-0.5">${h.note || 'ტარიფის ცვლილება'}</p>
+                    </div>
+                    <span class="text-[10px] text-gray-500 shrink-0 font-mono">${h.date}</span>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="bg-brand-bg border border-brand-border rounded-xl p-4 flex flex-col justify-between hover:border-brand-lime/40 transition-all">
+                <div>
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-white font-bold text-base flex items-center gap-2">
+                                ${f.name}
+                                ${f.website ? `<a href="${f.website}" target="_blank" rel="noopener" class="text-xs text-gray-500 hover:text-brand-lime transition-colors" title="ოფიციალური საიტი">🔗</a>` : ''}
+                            </h4>
+                            <span class="text-[11px] text-gray-500">საჰაერო გადაზიდვა</span>
+                        </div>
+                        <span class="px-2 py-1 rounded text-xs border font-medium ${badgeClass}">
+                            ${badgeText}
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 my-3 p-3 rounded-lg bg-brand-card border border-brand-border/60">
+                        <div>
+                            <span class="text-[10px] text-gray-500 block">მიმდინარე ტარიფი</span>
+                            <span class="text-lg font-bold text-brand-lime">$${f.currentRate.toFixed(2)}</span>
+                            <span class="text-[10px] text-gray-400">/ კგ</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-gray-500 block">წინა ტარიფი</span>
+                            <span class="text-sm font-semibold text-gray-300">$${prev.toFixed(2)}</span>
+                            <span class="text-[10px] text-gray-500 block">ბოლო განახლება: ${f.lastUpdated}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="group mt-2">
+                    <summary class="text-xs text-brand-lime hover:underline cursor-pointer flex items-center justify-between list-none py-1">
+                        <span>📜 ცვლილებების ისტორია (${(f.history || []).length})</span>
+                        <span class="transition-transform duration-200 group-open:rotate-180">▾</span>
+                    </summary>
+                    <div class="mt-2 pt-2 border-t border-brand-border/60 divide-y divide-brand-border/20">
+                        ${historyItems || '<p class="text-xs text-gray-500 py-2">ისტორია არ არის</p>'}
+                    </div>
+                </details>
+            </div>
+        `;
+    }).join('');
+}
+
+// Modal open/close helpers
+function openTrackerModal(focusId = null) {
+    if (!priceTrackerModal) return;
+    renderTrackerModal('all');
+    priceTrackerModal.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+
+    // Reset active filter button style
+    document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
+        if (btn.dataset.filter === 'all') {
+            btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-lime text-black font-semibold transition-colors';
+        } else {
+            btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors';
+        }
+    });
+}
+
+function closeTrackerModal() {
+    if (!priceTrackerModal) return;
+    priceTrackerModal.classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+}
+
+// Modal event listeners
+if (btnOpenPriceTracker) {
+    btnOpenPriceTracker.addEventListener('click', () => openTrackerModal());
+}
+if (btnViewSelectedHistory) {
+    btnViewSelectedHistory.addEventListener('click', () => openTrackerModal(forwarderSelect.value));
+}
+if (btnCloseTrackerModal) {
+    btnCloseTrackerModal.addEventListener('click', closeTrackerModal);
+}
+if (btnCloseTrackerModalBtn) {
+    btnCloseTrackerModalBtn.addEventListener('click', closeTrackerModal);
+}
+if (priceTrackerModal) {
+    priceTrackerModal.addEventListener('click', (e) => {
+        if (e.target === priceTrackerModal) closeTrackerModal();
+    });
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && priceTrackerModal && !priceTrackerModal.classList.contains('hidden')) {
+        closeTrackerModal();
+    }
+});
+
+// Modal filter tabs
+document.querySelectorAll('.tracker-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tracker-filter-btn').forEach(b => {
+            b.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-input text-gray-400 hover:text-white border border-brand-border transition-colors';
+        });
+        btn.className = 'tracker-filter-btn px-3 py-1.5 rounded-lg bg-brand-lime text-black font-semibold transition-colors';
+        renderTrackerModal(btn.dataset.filter);
+    });
+});
+
+// Check and show recent rate changes notification banner for users
+function checkRecentRateChanges() {
+    if (!rateAlertBanner || !rateAlertText) return;
+
+    // Find companies with non-zero diff
+    const changed = forwardersList.filter(f => (f.currentRate - (f.previousRate || f.currentRate)) !== 0);
+    if (changed.length === 0) return;
+
+    // Build unique signature of current rates
+    const currentSig = changed.map(f => `${f.id}:${f.currentRate}:${f.lastUpdated}`).join('|');
+    const seenSig = localStorage.getItem('calc_seen_rates_sig');
+
+    if (seenSig !== currentSig) {
+        const summaries = changed.slice(0, 2).map(f => {
+            const diff = +(f.currentRate - f.previousRate).toFixed(2);
+            return `${f.name} (${diff > 0 ? '+' : ''}$${diff.toFixed(2)})`;
+        }).join(', ');
+
+        rateAlertText.textContent = `${summaries}${changed.length > 2 ? ' და სხვა' : ''}`;
+        rateAlertBanner.classList.remove('hidden');
+
+        if (btnAlertOpenTracker) {
+            btnAlertOpenTracker.onclick = () => {
+                localStorage.setItem('calc_seen_rates_sig', currentSig);
+                rateAlertBanner.classList.add('hidden');
+                openTrackerModal();
+            };
+        }
+
+        if (btnDismissAlert) {
+            btnDismissAlert.onclick = () => {
+                localStorage.setItem('calc_seen_rates_sig', currentSig);
+                rateAlertBanner.classList.add('hidden');
+            };
+        }
+    }
+}
+
 // --- MAIN CALCULATOR LOGIC ---
+
 document.getElementById('calculate').addEventListener('click', async () => {
     // 1. Inputs
     const priceUSD = parseFloat(document.getElementById('price').value);
@@ -64,9 +474,20 @@ document.getElementById('calculate').addEventListener('click', async () => {
     }
 
     // 4. Shipping Rate Logic
-    let shippingRatePerKG = parseFloat(forwarderSelect.value);
-    if (forwarderSelect.value === 'custom') {
+    const selectedForwarderId = forwarderSelect.value;
+    const forwarderObj = forwardersList.find(f => f.id === selectedForwarderId);
+    let shippingRatePerKG = 0;
+    let forwarderDisplayName = 'გადამზიდი';
+
+    if (selectedForwarderId === 'custom') {
         shippingRatePerKG = parseFloat(document.getElementById('customShippingRate').value) || 0;
+        forwarderDisplayName = 'სხვა (ინდივიდუალური)';
+    } else if (forwarderObj) {
+        shippingRatePerKG = forwarderObj.currentRate;
+        forwarderDisplayName = forwarderObj.name;
+    } else {
+        // Fallback for legacy numeric string values
+        shippingRatePerKG = parseFloat(selectedForwarderId) || 0;
     }
 
     // 5. Exchange Rate
@@ -146,7 +567,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
                 </div>
                 
                 <div class="text-xs text-center text-brand-text-muted mt-2 mb-4">
-                    კურსი: ${exchangeRate.toFixed(4)} • ტარიფი: $${shippingRatePerKG}/kg
+                    კურსი: ${exchangeRate.toFixed(4)} • ${forwarderDisplayName}: $${shippingRatePerKG.toFixed(2)}/kg
                 </div>
 
                 <div class="bg-white/5 rounded-xl p-3 border border-white/10 mt-4 space-y-3">
@@ -211,7 +632,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
 https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ------------------
 ნივთი: $${priceUSD}
-წონა: ${chargeableWeightKG.toFixed(2)} kg
+წონა: ${chargeableWeightKG.toFixed(2)} kg (${forwarderDisplayName})
 ტრანსპორტირება: ${deliveryCostGEL.toFixed(2)} ₾
 ${hasTax ? `გადასახადები: ${(vat + treasury_fee + declaration_preparation_fee).toFixed(2)} ₾` : 'განბაჟების გარეშე'}
 ------------------
@@ -226,42 +647,61 @@ ${hasTax ? `გადასახადები: ${(vat + treasury_fee + declar
 }); // <--- END OF CALCULATE FUNCTION
 
 
-// --- MEMORY LOGIC ---
+// --- INITIALIZATION & MEMORY LOGIC ---
 
-// 1. Load settings when page opens
 document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Fetch fresh forwarder rates from data/forwarders.json
+    await loadForwardersData();
+
+    // 2. Load saved forwarder
     const savedForwarder = localStorage.getItem('calc_forwarder');
     const savedCustomRate = localStorage.getItem('calc_custom_rate');
 
+    let initialForwarderId = 'inex';
+
     if (savedForwarder) {
-        forwarderSelect.value = savedForwarder;
-        
-        if (savedForwarder === 'custom') {
-            customShippingInputWrapper.classList.remove('hidden');
-            if (savedCustomRate) {
-                document.getElementById('customShippingRate').value = savedCustomRate;
-            }
+        // Map legacy values if user had older version saved
+        if (savedForwarder === '9.00') initialForwarderId = 'usa2georgia';
+        else if (savedForwarder === '8.35') initialForwarderId = 'camex';
+        else if (savedForwarder === '8.50') initialForwarderId = 'inex';
+        else initialForwarderId = savedForwarder;
+    }
+
+    populateForwardersSelect(initialForwarderId);
+
+    if (initialForwarderId === 'custom') {
+        customShippingInputWrapper.classList.remove('hidden');
+        if (savedCustomRate) {
+            document.getElementById('customShippingRate').value = savedCustomRate;
         }
     }
+
+    // 3. Load Exchange Rate Placeholder
     const customRateInput = document.getElementById('customRate');
     const defaultRate = await fetchExchangeRate(parseFloat(savedCustomRate));
     if (customRateInput && (isNaN(parseFloat(savedCustomRate)) || parseFloat(savedCustomRate) <= 0)) {
         customRateInput.placeholder = `ავტომატური (${defaultRate.toFixed(4)})`;
     }
+
+    // 4. Check for recent rate changes alert banner
+    checkRecentRateChanges();
 });
 
-// 2. Save settings when changed
+// Forwarder select change handler
 forwarderSelect.addEventListener('change', (e) => {
-    localStorage.setItem('calc_forwarder', e.target.value);
+    const value = e.target.value;
+    localStorage.setItem('calc_forwarder', value);
     
-    if (e.target.value === 'custom') {
+    if (value === 'custom') {
         customShippingInputWrapper.classList.remove('hidden');
     } else {
         customShippingInputWrapper.classList.add('hidden');
     }
+
+    updateForwarderRateStatusPill(value);
 });
 
-// 3. Save the custom rate specifically if they type in it
+// Save custom rate on input
 document.getElementById('customShippingRate').addEventListener('input', (e) => {
     localStorage.setItem('calc_custom_rate', e.target.value);
 });
