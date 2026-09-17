@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_FILE = path.join(__dirname, '..', 'data', 'forwarders.json');
+const MIN_REASONABLE_RATE = 5;
+const MAX_REASONABLE_RATE = 25;
+const MAX_AUTOMATIC_CHANGE_PERCENT = 35;
 
 // Standard browser headers to avoid basic bot blocks
 const HEADERS = {
@@ -49,7 +52,7 @@ async function scrapeUSA2GEORGIA() {
 
         if (rateMatch && rateMatch[1]) {
             const rate = parseFloat(rateMatch[1]);
-            if (!isNaN(rate) && rate > 0) return rate;
+            if (!isNaN(rate) && rate >= MIN_REASONABLE_RATE && rate <= MAX_REASONABLE_RATE) return rate;
         }
 
         throw new Error('Could not parse rate from bundle');
@@ -89,7 +92,7 @@ async function scrapeInex() {
                                        || js.match(/აშშ[^\d]{1,50}(\d+\.\d{2})/i);
                         if (rateMatch && rateMatch[1]) {
                             const parsed = parseFloat(rateMatch[1]);
-                            if (parsed >= 5 && parsed <= 25) return parsed;
+                            if (parsed >= MIN_REASONABLE_RATE && parsed <= MAX_REASONABLE_RATE) return parsed;
                         }
                     }
                 } catch (e) {
@@ -133,10 +136,20 @@ async function run() {
         console.log(`📡 Fetching latest rate for ${company.name}...`);
         const latestRate = await scraperFn();
 
-        if (latestRate != null && latestRate > 0) {
+        if (latestRate != null && latestRate >= MIN_REASONABLE_RATE && latestRate <= MAX_REASONABLE_RATE) {
             const current = company.currentRate;
             if (latestRate !== current) {
                 const diff = +(latestRate - current).toFixed(2);
+                const changePercent = current > 0 ? Math.abs((diff / current) * 100) : 100;
+
+                if (changePercent > MAX_AUTOMATIC_CHANGE_PERCENT) {
+                    console.warn(
+                        `⚠️ ${company.name}: rejected suspicious ${changePercent.toFixed(1)}% change ` +
+                        `($${current.toFixed(2)} ➔ $${latestRate.toFixed(2)}). Manual verification required.`
+                    );
+                    continue;
+                }
+
                 console.log(`🚨 Price change detected for ${company.name}: $${current.toFixed(2)} ➔ $${latestRate.toFixed(2)} (${diff >= 0 ? '+' : ''}${diff.toFixed(2)})`);
 
                 company.previousRate = current;

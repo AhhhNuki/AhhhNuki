@@ -51,12 +51,13 @@ const DEFAULT_FORWARDERS = [
         id: "maleo",
         name: "Maleo",
         currentRate: 8.50,
-        previousRate: 8.00,
-        lastUpdated: "2024-02-01",
+        previousRate: 8.50,
+        lastUpdated: "2026-09-16",
         currency: "USD",
         unit: "kg",
         website: "https://maleo.ge",
         history: [
+            { date: "2026-09-16", rate: 8.50, change: 0.00, direction: "unchanged", note: "ტარიფის დადასტურება" },
             { date: "2024-02-01", rate: 8.50, change: 0.50, direction: "up", note: "ტარიფი გაიზარდა $0.50-ით ($8.00 ➔ $8.50)" },
             { date: "2023-06-01", rate: 8.00, change: 0.00, direction: "initial", note: "სტანდარტული ტარიფი" }
         ]
@@ -95,11 +96,20 @@ let forwardersList = [...DEFAULT_FORWARDERS];
 // Load fresh data from JSON file (with fallback)
 async function loadForwardersData() {
     try {
-        const response = await fetch('./data/forwarders.json');
+        const response = await fetch('./data/forwarders.json', { cache: 'no-store' });
         if (response.ok) {
             const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
+            const isValid = Array.isArray(data) && data.length > 0 && data.every(forwarder => (
+                forwarder &&
+                typeof forwarder.id === 'string' &&
+                typeof forwarder.name === 'string' &&
+                Number.isFinite(forwarder.currentRate) &&
+                forwarder.currentRate > 0
+            ));
+            if (isValid) {
                 forwardersList = data;
+            } else {
+                console.warn('data/forwarders.json has an unexpected structure; using bundled rates.');
             }
         }
     } catch (e) {
@@ -129,25 +139,101 @@ const rateAlertBanner = document.getElementById('rateAlertBanner');
 const rateAlertText = document.getElementById('rateAlertText');
 const btnAlertOpenTracker = document.getElementById('btnAlertOpenTracker');
 const btnDismissAlert = document.getElementById('btnDismissAlert');
+const exchangeRateStatus = document.getElementById('exchangeRateStatus');
+const calculateButton = document.getElementById('calculate');
 
 // Volumetric Toggle
 toggleVolumetric.addEventListener('change', (e) => {
     volumetricInputs.classList.toggle('hidden', !e.target.checked);
 });
 
-// Fetch USD to GEL exchange rate
+const NBG_USD_RATE_URL = 'https://nbg.gov.ge/gw/api/ct/monetarypolicy/currencies/en/json/?currencies=USD';
+const EXCHANGE_RATE_CACHE_KEY = 'calc_exchange_rate_snapshot_v1';
+const FALLBACK_EXCHANGE_RATE = 2.77;
+let exchangeRateRequest = null;
+let exchangeRateInfo = null;
+
+function storeExchangeRateSnapshot(snapshot) {
+    try {
+        localStorage.setItem(EXCHANGE_RATE_CACHE_KEY, JSON.stringify(snapshot));
+    } catch (error) {
+        console.warn('Could not cache the exchange rate.', error);
+    }
+}
+
+function readExchangeRateSnapshot() {
+    try {
+        const snapshot = JSON.parse(localStorage.getItem(EXCHANGE_RATE_CACHE_KEY) || 'null');
+        if (snapshot && Number.isFinite(snapshot.rate) && snapshot.rate > 0) return snapshot;
+    } catch (error) {
+        console.warn('Cached exchange rate is invalid.', error);
+    }
+    return null;
+}
+
+function renderExchangeRateStatus(info) {
+    if (!exchangeRateStatus || !info) return;
+
+    if (info.source === 'manual') {
+        exchangeRateStatus.textContent = 'გამოიყენება თქვენ მიერ მითითებული კურსი.';
+        return;
+    }
+
+    if (info.source === 'nbg') {
+        const date = info.validFrom ? new Date(info.validFrom).toLocaleDateString('ka-GE') : '';
+        exchangeRateStatus.textContent = `საქართველოს ეროვნული ბანკის ოფიციალური კურსი${date ? ` • ${date}` : ''}`;
+        return;
+    }
+
+    if (info.source === 'cache') {
+        const date = info.validFrom ? new Date(info.validFrom).toLocaleDateString('ka-GE') : '';
+        exchangeRateStatus.textContent = `ოფლაინ რეჟიმი — შენახული კურსი${date ? ` • ${date}` : ''}`;
+        return;
+    }
+
+    exchangeRateStatus.textContent = 'კურსის მიღება ვერ მოხერხდა — გამოიყენება საორიენტაციო მნიშვნელობა.';
+}
+
+// Fetch the official USD/GEL rate from the National Bank of Georgia.
 async function fetchExchangeRate(customRate) {
-    if (!isNaN(customRate) && customRate > 0) {
+    if (Number.isFinite(customRate) && customRate > 0) {
+        exchangeRateInfo = { rate: customRate, source: 'manual', validFrom: null };
+        renderExchangeRateStatus(exchangeRateInfo);
         return customRate;
     }
-    try {
-        const response = await fetch('https://v6.exchangerate-api.com/v6/e29b3b7ef3b8216203343e73/latest/USD');
-        const data = await response.json();
-        return data.conversion_rates?.GEL || 2.77;
-    } catch (error) {
-        console.error('Error fetching exchange rate:', error);
-        return 2.77;
+
+    if (!exchangeRateRequest) {
+        exchangeRateRequest = (async () => {
+            try {
+                const response = await fetch(NBG_USD_RATE_URL, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`NBG returned HTTP ${response.status}`);
+
+                const payload = await response.json();
+                const usd = payload?.[0]?.currencies?.find(currency => currency.code === 'USD');
+                const quantity = Number(usd?.quantity) || 1;
+                const rate = Number(usd?.rate) / quantity;
+                if (!Number.isFinite(rate) || rate <= 0) throw new Error('NBG rate is invalid');
+
+                const snapshot = {
+                    rate,
+                    source: 'nbg',
+                    validFrom: usd.validFromDate || payload?.[0]?.date || null,
+                    fetchedAt: new Date().toISOString()
+                };
+                storeExchangeRateSnapshot(snapshot);
+                return snapshot;
+            } catch (error) {
+                console.error('Error fetching the NBG exchange rate:', error);
+                const cached = readExchangeRateSnapshot();
+                if (cached) return { ...cached, source: 'cache' };
+                return { rate: FALLBACK_EXCHANGE_RATE, source: 'fallback', validFrom: null };
+            }
+        })();
     }
+
+    exchangeRateInfo = await exchangeRateRequest;
+    renderExchangeRateStatus(exchangeRateInfo);
+    return exchangeRateInfo.rate;
 }
 
 // --- CUSTOM DROPDOWN & SELECT LOGIC ---
@@ -205,7 +291,11 @@ function renderCustomDropdown(selectedId) {
             badge = `<span class="text-xs font-bold text-brand-lime bg-lime-950/80 border border-brand-lime/60 px-2 py-0.5 rounded flex items-center gap-1">▼ -$${Math.abs(diff).toFixed(2)}</span>`;
         }
 
-        const item = document.createElement('div');
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', String(isSelected));
+        item.tabIndex = -1;
         item.className = `px-3.5 py-2.5 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-brand-input transition-colors ${isSelected ? 'bg-brand-input/90 border border-brand-lime/40 text-brand-lime' : 'text-gray-200'}`;
         item.dataset.value = f.id;
         item.innerHTML = `
@@ -219,16 +309,20 @@ function renderCustomDropdown(selectedId) {
         item.addEventListener('click', () => {
             forwarderSelect.value = f.id;
             forwarderSelect.dispatchEvent(new Event('change'));
-            customSelectMenu.classList.add('hidden');
-            if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+            closeCustomDropdown(true);
         });
+        item.addEventListener('keydown', handleDropdownOptionKeydown);
 
         customSelectMenu.appendChild(item);
     });
 
     // Custom option
     const isCustom = selectedId === 'custom';
-    const customItem = document.createElement('div');
+    const customItem = document.createElement('button');
+    customItem.type = 'button';
+    customItem.setAttribute('role', 'option');
+    customItem.setAttribute('aria-selected', String(isCustom));
+    customItem.tabIndex = -1;
     customItem.className = `px-3.5 py-2.5 rounded-lg text-sm flex items-center justify-between cursor-pointer hover:bg-brand-input transition-colors ${isCustom ? 'bg-brand-input/90 border border-brand-lime/40 text-brand-lime' : 'text-gray-300'}`;
     customItem.dataset.value = 'custom';
     customItem.innerHTML = `
@@ -238,12 +332,62 @@ function renderCustomDropdown(selectedId) {
     customItem.addEventListener('click', () => {
         forwarderSelect.value = 'custom';
         forwarderSelect.dispatchEvent(new Event('change'));
-        customSelectMenu.classList.add('hidden');
-        if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+        closeCustomDropdown(true);
     });
+    customItem.addEventListener('keydown', handleDropdownOptionKeydown);
     customSelectMenu.appendChild(customItem);
 
     updateCustomSelectDisplay(selectedId);
+}
+
+function getDropdownOptions() {
+    return Array.from(customSelectMenu?.querySelectorAll('[role="option"]') || []);
+}
+
+function closeCustomDropdown(returnFocus = false) {
+    if (!customSelectMenu || !customSelectTrigger) return;
+    customSelectMenu.classList.add('hidden');
+    customSelectTrigger.setAttribute('aria-expanded', 'false');
+    if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+    if (returnFocus) customSelectTrigger.focus();
+}
+
+function openCustomDropdown(preferredIndex = null) {
+    if (!customSelectMenu || !customSelectTrigger) return;
+    customSelectMenu.classList.remove('hidden');
+    customSelectTrigger.setAttribute('aria-expanded', 'true');
+    if (customSelectArrow) customSelectArrow.classList.add('rotate-180');
+
+    const options = getDropdownOptions();
+    const selectedIndex = options.findIndex(option => option.getAttribute('aria-selected') === 'true');
+    const targetIndex = preferredIndex == null
+        ? Math.max(selectedIndex, 0)
+        : Math.min(Math.max(preferredIndex, 0), options.length - 1);
+    options[targetIndex]?.focus();
+}
+
+function handleDropdownOptionKeydown(event) {
+    const options = getDropdownOptions();
+    const currentIndex = options.indexOf(event.currentTarget);
+    let nextIndex = null;
+
+    if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
+    if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = options.length - 1;
+
+    if (nextIndex != null) {
+        event.preventDefault();
+        options[nextIndex]?.focus();
+        return;
+    }
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCustomDropdown(true);
+    } else if (event.key === 'Tab') {
+        closeCustomDropdown(false);
+    }
 }
 
 // Setup custom dropdown toggle & outside click listener
@@ -251,14 +395,26 @@ if (customSelectTrigger && customSelectMenu) {
     customSelectTrigger.addEventListener('click', (e) => {
         e.stopPropagation();
         const isHidden = customSelectMenu.classList.contains('hidden');
-        customSelectMenu.classList.toggle('hidden', !isHidden);
-        if (customSelectArrow) customSelectArrow.classList.toggle('rotate-180', isHidden);
+        if (isHidden) openCustomDropdown();
+        else closeCustomDropdown(false);
+    });
+
+    customSelectTrigger.addEventListener('keydown', event => {
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const options = getDropdownOptions();
+            const targetIndex = event.key === 'End' || event.key === 'ArrowUp'
+                ? options.length - 1
+                : 0;
+            openCustomDropdown(targetIndex);
+        } else if (event.key === 'Escape') {
+            closeCustomDropdown(false);
+        }
     });
 
     document.addEventListener('click', (e) => {
         if (customDropdownWrapper && !customDropdownWrapper.contains(e.target)) {
-            customSelectMenu.classList.add('hidden');
-            if (customSelectArrow) customSelectArrow.classList.remove('rotate-180');
+            closeCustomDropdown(false);
         }
     });
 }
@@ -267,6 +423,11 @@ function populateForwardersSelect(selectedId) {
     if (!forwarderSelect) return;
 
     forwarderSelect.innerHTML = '';
+
+    const knownSelection = selectedId === 'custom' || forwardersList.some(f => f.id === selectedId);
+    const resolvedSelectedId = knownSelection
+        ? selectedId
+        : (forwardersList.some(f => f.id === 'inex') ? 'inex' : forwardersList[0]?.id);
 
     forwardersList.forEach((f) => {
         const diff = +(f.currentRate - (f.previousRate != null ? f.previousRate : f.currentRate)).toFixed(2);
@@ -280,17 +441,17 @@ function populateForwardersSelect(selectedId) {
         const opt = document.createElement('option');
         opt.value = f.id;
         opt.textContent = `${f.name} ($${f.currentRate.toFixed(2)}/kg)${indicator}`;
-        if (f.id === selectedId) opt.selected = true;
+        if (f.id === resolvedSelectedId) opt.selected = true;
         forwarderSelect.appendChild(opt);
     });
 
     const customOpt = document.createElement('option');
     customOpt.value = 'custom';
     customOpt.textContent = 'სხვა (მითითება...)';
-    if (selectedId === 'custom') customOpt.selected = true;
+    if (resolvedSelectedId === 'custom') customOpt.selected = true;
     forwarderSelect.appendChild(customOpt);
 
-    renderCustomDropdown(selectedId);
+    renderCustomDropdown(resolvedSelectedId);
     updateForwarderRateStatusPill(forwarderSelect.value);
 }
 
@@ -479,20 +640,35 @@ function setActiveTrackerFilter(activeFilter) {
 }
 
 // Modal open/close helpers
+let trackerModalReturnFocus = null;
+
+function getTrackerModalFocusableElements() {
+    if (!priceTrackerModal) return [];
+    return Array.from(priceTrackerModal.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(element => !element.closest('.hidden'));
+}
+
 function openTrackerModal(focusId = null) {
     if (!priceTrackerModal) return;
+    trackerModalReturnFocus = document.activeElement;
     renderTrackerModal('all');
     priceTrackerModal.classList.remove('hidden');
+    priceTrackerModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('overflow-hidden');
 
     // Reset active filter button style
     setActiveTrackerFilter('all');
+    btnCloseTrackerModal?.focus();
 }
 
 function closeTrackerModal() {
     if (!priceTrackerModal) return;
     priceTrackerModal.classList.add('hidden');
+    priceTrackerModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('overflow-hidden');
+    if (trackerModalReturnFocus instanceof HTMLElement) trackerModalReturnFocus.focus();
+    trackerModalReturnFocus = null;
 }
 
 // Modal event listeners
@@ -514,8 +690,28 @@ if (priceTrackerModal) {
     });
 }
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && priceTrackerModal && !priceTrackerModal.classList.contains('hidden')) {
+    const modalIsOpen = priceTrackerModal && !priceTrackerModal.classList.contains('hidden');
+    if (e.key === 'Escape' && modalIsOpen) {
         closeTrackerModal();
+        return;
+    }
+
+    if (e.key === 'Tab' && modalIsOpen) {
+        const focusable = getTrackerModalFocusableElements();
+        if (focusable.length === 0) {
+            e.preventDefault();
+            return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
     }
 });
 
@@ -565,45 +761,48 @@ function checkRecentRateChanges() {
 
 // --- MAIN CALCULATOR LOGIC ---
 
-document.getElementById('calculate').addEventListener('click', async () => {
+function showCalculationError(message, fieldId = null) {
+    const resultContainer = document.getElementById('result');
+    const error = document.createElement('div');
+    error.className = 'text-red-400 text-center bg-red-900/20 border border-red-900/50 p-4 rounded-xl';
+    error.setAttribute('role', 'alert');
+    error.textContent = message;
+    resultContainer.replaceChildren(error);
+    if (fieldId) document.getElementById(fieldId)?.focus();
+}
+
+calculateButton.addEventListener('click', async () => {
     // 1. Inputs
     const priceUSD = parseFloat(document.getElementById('price').value);
     const weightInput = parseFloat(document.getElementById('weight').value);
-    const customRate = parseFloat(document.getElementById('customRate').value);
+    const customRateInput = document.getElementById('customRate');
+    const customRateRaw = customRateInput.value.trim();
+    const customRate = customRateRaw ? parseFloat(customRateRaw) : NaN;
     const weightUnit = document.getElementById('weightUnit').value;
 
     const resultContainer = document.getElementById('result');
-    const declaration_preparation_fee = 10; 
-    const treasury_fee = 20;
+    const declaration_preparation_fee = CalculatorCore.DECLARATION_PREPARATION_FEE_GEL;
+    const treasury_fee = CalculatorCore.TREASURY_FEE_GEL;
 
     // Validation
-    if (isNaN(priceUSD) || isNaN(weightInput)) {
-        resultContainer.innerHTML = '<div class="text-red-400 text-center bg-red-900/20 border border-red-900/50 p-4 rounded-xl">გთხოვთ შეიყვანოთ სწორი რიცხვები.</div>';
+    if (!Number.isFinite(priceUSD) || priceUSD < 0) {
+        showCalculationError('ნივთის ფასი უნდა იყოს 0 ან მეტი.', 'price');
+        return;
+    }
+    if (!Number.isFinite(weightInput) || weightInput <= 0) {
+        showCalculationError('წონა უნდა იყოს 0-ზე მეტი.', 'weight');
+        return;
+    }
+    if (customRateRaw && (!Number.isFinite(customRate) || customRate <= 0)) {
+        showCalculationError('USD/GEL კურსი უნდა იყოს 0-ზე მეტი.', 'customRate');
         return;
     }
 
-    // 2. Weight Calculation (Standardize to KG)
-    let realWeightKG;
-    if (weightUnit === 'ounces') realWeightKG = weightInput * 0.0283495;
-    else if (weightUnit === 'pounds') realWeightKG = weightInput * 0.453592;
-    else realWeightKG = weightInput;
-
-    // 3. Volumetric Logic
-    let chargeableWeightKG = realWeightKG;
-    let isVolumetric = false;
-
-    if (toggleVolumetric.checked) {
-        const L = parseFloat(document.getElementById('dimL').value) || 0;
-        const W = parseFloat(document.getElementById('dimW').value) || 0;
-        const H = parseFloat(document.getElementById('dimH').value) || 0;
-        
-        const volWeightKG = (L * W * H) / 6000;
-        
-        if (volWeightKG > realWeightKG) {
-            chargeableWeightKG = volWeightKG;
-            isVolumetric = true;
-        }
-    }
+    const dimensions = {
+        lengthCm: parseFloat(document.getElementById('dimL').value),
+        widthCm: parseFloat(document.getElementById('dimW').value),
+        heightCm: parseFloat(document.getElementById('dimH').value)
+    };
 
     // 4. Shipping Rate Logic
     const selectedForwarderId = forwarderSelect.value;
@@ -612,7 +811,7 @@ document.getElementById('calculate').addEventListener('click', async () => {
     let forwarderDisplayName = 'გადამზიდი';
 
     if (selectedForwarderId === 'custom') {
-        shippingRatePerKG = parseFloat(document.getElementById('customShippingRate').value) || 0;
+        shippingRatePerKG = parseFloat(document.getElementById('customShippingRate').value);
         forwarderDisplayName = 'სხვა (ინდივიდუალური)';
     } else if (forwarderObj) {
         shippingRatePerKG = forwarderObj.currentRate;
@@ -622,33 +821,71 @@ document.getElementById('calculate').addEventListener('click', async () => {
         shippingRatePerKG = parseFloat(selectedForwarderId) || 0;
     }
 
+    if (!Number.isFinite(shippingRatePerKG) || shippingRatePerKG <= 0) {
+        showCalculationError(
+            'ტრანსპორტირების ტარიფი უნდა იყოს 0-ზე მეტი.',
+            selectedForwarderId === 'custom' ? 'customShippingRate' : null
+        );
+        return;
+    }
+
     // 5. Exchange Rate
-    let exchangeRate = customRate;
-    if (isNaN(customRate) || customRate <= 0) {
-        try {
-            const response = await fetch('https://v6.exchangerate-api.com/v6/e29b3b7ef3b8216203343e73/latest/USD');
-            const data = await response.json();
-            exchangeRate = data.conversion_rates?.GEL || 2.77;
-        } catch (error) {
-            exchangeRate = 2.77;
-        }
+    calculateButton.disabled = true;
+    calculateButton.setAttribute('aria-busy', 'true');
+    const originalButtonText = calculateButton.textContent;
+    calculateButton.textContent = 'ითვლება...';
+    const exchangeRate = await fetchExchangeRate(customRate);
+    calculateButton.disabled = false;
+    calculateButton.removeAttribute('aria-busy');
+    calculateButton.textContent = originalButtonText;
+
+    // 6. Final calculations are kept in a pure, testable module.
+    const calculationInput = {
+        priceUSD,
+        weightInput,
+        weightUnit,
+        shippingRatePerKG,
+        exchangeRate,
+        useVolumetric: toggleVolumetric.checked,
+        dimensions
+    };
+    const validation = CalculatorCore.validateCalculationInputs(calculationInput);
+    if (!validation.valid) {
+        const firstError = validation.errors[0];
+        const fieldMap = {
+            price: 'price',
+            weight: 'weight',
+            shippingRate: selectedForwarderId === 'custom' ? 'customShippingRate' : null,
+            exchangeRate: 'customRate',
+            dimensions: 'dimL'
+        };
+        showCalculationError(firstError.message, fieldMap[firstError.field]);
+        return;
     }
 
-    // 6. Final Calculations
-    const priceGEL = priceUSD * exchangeRate;
-    const deliveryCostUSD = chargeableWeightKG * shippingRatePerKG; 
-    const deliveryCostGEL = deliveryCostUSD * exchangeRate;
-
-    let totalCostGEL = priceGEL + deliveryCostGEL;
-    let vat = 0;
-    const taxableAmount = totalCostGEL; 
-
-    let hasTax = false;
-    if (taxableAmount >= 300) {
-        hasTax = true;
-        vat = taxableAmount * 0.18;
-        totalCostGEL += vat + treasury_fee + declaration_preparation_fee;
-    }
+    const calculation = CalculatorCore.calculateCosts(calculationInput);
+    const realWeightKG = calculation.physicalWeightKg;
+    const volWeightKG = calculation.volumetricWeightKg;
+    const chargeableWeightKG = calculation.chargeableWeightKg;
+    const isVolumetric = calculation.usesVolumetricWeight;
+    const priceGEL = calculation.itemCostGEL;
+    const deliveryCostGEL = calculation.shippingCostGEL;
+    const totalCostGEL = calculation.totalCostGEL;
+    const taxableAmount = calculation.estimatedCustomsValueGEL;
+    const vat = calculation.vatGEL;
+    const hasTax = calculation.hasTax;
+    const customsReasonText = calculation.taxReasons.map(reason => (
+        reason === 'physical-weight'
+            ? 'ფიზიკური წონა 30 კგ-ს აღემატება'
+            : 'სავარაუდო საბაჟო ღირებულება 300 ₾-ს აღწევს'
+    )).join(' • ');
+    const rateSourceText = exchangeRateInfo?.source === 'manual'
+        ? 'ხელით მითითებული'
+        : exchangeRateInfo?.source === 'nbg'
+            ? 'ეროვნული ბანკი'
+            : exchangeRateInfo?.source === 'cache'
+                ? 'შენახული ოფლაინ კურსი'
+                : 'საორიენტაციო სარეზერვო კურსი';
 
     // 7. RENDER
     resultContainer.innerHTML = `
@@ -667,29 +904,42 @@ document.getElementById('calculate').addEventListener('click', async () => {
                 <span class="text-white font-medium">${deliveryCostGEL.toFixed(2)} ₾</span>
             </div>
 
+            ${toggleVolumetric.checked ? `
+            <div class="text-xs text-gray-500 flex justify-between gap-3">
+                <span>ფიზიკური: ${realWeightKG.toFixed(2)} კგ</span>
+                <span>მოცულობითი: ${volWeightKG.toFixed(2)} კგ</span>
+            </div>
+            ` : ''}
+
             ${hasTax ? `
             <div class="p-3 bg-red-500/10 rounded-xl border border-red-500/20 space-y-2 mt-2 flex-grow">
+                <p class="text-xs text-red-300 border-b border-red-500/20 pb-2">${customsReasonText}</p>
                 <div class="flex justify-between items-center text-gray-300 text-xs border-b border-red-500/20 pb-2">
                     <span>დღგ (18%):</span>
                     <span class="text-red-400 font-medium">${vat.toFixed(2)} ₾</span>
                 </div>
                 <div class="flex justify-between items-center text-gray-300 text-xs">
-                    <span>განბაჟების საფასური:</span>
+                    <span>საბაჟო მომსახურების შეფასება:</span>
                     <span class="text-red-400 font-medium">${treasury_fee.toFixed(2)} ₾</span>
                 </div>
                 <div class="flex justify-between items-center text-gray-300 text-xs">
-                    <span>დეკლარაციის მომზადება:</span>
+                    <span>დეკლარაციის მომზადების შეფასება:</span>
                     <span class="text-red-400 font-medium">${declaration_preparation_fee.toFixed(2)} ₾</span>
                 </div>
             </div>
             ` : `
             <div class="text-xs text-brand-lime/70 text-right mt-1 mb-auto">
-                *განბაჟება არ გიწევთ
+                *შეფასებით: ღირებულება 300 ₾-ზე ნაკლებია და ფიზიკური წონა 30 კგ-ს არ აღემატება
             </div>
             `}
 
             <div class="mt-auto">
                 <div class="h-px bg-brand-border my-4"></div>
+
+                <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2">
+                    <span>სავარაუდო საბაჟო ღირებულება:</span>
+                    <span>${taxableAmount.toFixed(2)} ₾</span>
+                </div>
 
                 <div class="flex justify-between items-center">
                     <span class="text-lg font-bold text-white">სულ:</span>
@@ -699,14 +949,20 @@ document.getElementById('calculate').addEventListener('click', async () => {
                 </div>
                 
                 <div class="text-xs text-center text-brand-text-muted mt-2 mb-4">
-                    კურსი: ${exchangeRate.toFixed(4)} • ${forwarderDisplayName}: $${shippingRatePerKG.toFixed(2)}/kg
+                    კურსი: ${exchangeRate.toFixed(4)} (${rateSourceText}) • ${forwarderDisplayName}: $${shippingRatePerKG.toFixed(2)}/kg
+                    <div class="mt-1">
+                        გამოთვლა საორიენტაციოა. საბოლოო დარიცხვას განსაზღვრავს
+                        <a href="https://www.rs.ge/Parcelinfo" target="_blank" rel="noopener noreferrer" class="text-brand-lime hover:underline">შემოსავლების სამსახური</a>.
+                    </div>
                 </div>
 
                 <div class="bg-white/5 rounded-xl p-3 border border-white/10 mt-4 space-y-3">
+                    <label for="saveTitle" class="sr-only">ნივთის დასახელება</label>
                     <input type="text" id="saveTitle" placeholder="ნივთის დასახელება..." 
                         class="bg-brand-bg border border-brand-border text-white text-xs rounded-lg block w-full p-2 outline-none focus:border-brand-lime mb-2">
                     
-                    <input type="text" id="saveUrl" placeholder="ლინკი (არასავალდებულო)..." 
+                    <label for="saveUrl" class="sr-only">ნივთის ბმული</label>
+                    <input type="url" id="saveUrl" placeholder="ლინკი (არასავალდებულო)..."
                         class="bg-brand-bg border border-brand-border text-white text-xs rounded-lg block w-full p-2 outline-none focus:border-brand-lime mb-2">
                     
                     <div class="flex gap-2">
@@ -736,24 +992,31 @@ document.getElementById('calculate').addEventListener('click', async () => {
             url: urlInput.value.trim(),
             priceUSD: priceUSD.toFixed(2),
             weight: chargeableWeightKG.toFixed(2),
+            physicalWeight: realWeightKG.toFixed(2),
+            volumetricWeight: volWeightKG.toFixed(2),
             unit: 'kg', 
             total: totalCostGEL.toFixed(2),
             rate: exchangeRate.toFixed(4),
             deliveryGEL: deliveryCostGEL.toFixed(2),
-            taxTotal: hasTax ? (vat + treasury_fee + declaration_preparation_fee).toFixed(2) : "0.00"
+            taxTotal: hasTax ? (vat + treasury_fee + declaration_preparation_fee).toFixed(2) : "0.00",
+            forwarderId: selectedForwarderId,
+            forwarderName: forwarderDisplayName
         };
 
-        saveItemToHistory(savedData);
+        const saved = saveItemToHistory(savedData);
 
         const btn = document.getElementById('btnSaveResult');
         const originalText = btn.textContent;
-        btn.textContent = 'შენახულია!';
-        btn.classList.add('text-brand-lime');
+        btn.textContent = saved ? 'შენახულია!' : 'შენახვა ვერ მოხერხდა';
+        btn.classList.toggle('text-brand-lime', saved);
+        btn.classList.toggle('text-red-400', !saved);
         setTimeout(() => {
             btn.textContent = originalText;
-            btn.classList.remove('text-brand-lime');
-            titleInput.value = '';
-            urlInput.value = '';
+            btn.classList.remove('text-brand-lime', 'text-red-400');
+            if (saved) {
+                titleInput.value = '';
+                urlInput.value = '';
+            }
         }, 2000);
     });
 
@@ -766,14 +1029,22 @@ https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ნივთი: $${priceUSD}
 წონა: ${chargeableWeightKG.toFixed(2)} kg (${forwarderDisplayName})
 ტრანსპორტირება: ${deliveryCostGEL.toFixed(2)} ₾
-${hasTax ? `გადასახადები: ${(vat + treasury_fee + declaration_preparation_fee).toFixed(2)} ₾` : 'განბაჟების გარეშე'}
+${hasTax ? `სავარაუდო გადასახადები: ${(vat + treasury_fee + declaration_preparation_fee).toFixed(2)} ₾` : 'შეფასებით განბაჟების გარეშე'}
 ------------------
 სულ: ${totalCostGEL.toFixed(2)} ₾
         `.trim();
 
-        navigator.clipboard.writeText(textToShare).then(() => {
-            alert('შედეგი დაკოპირდა!');
-        });
+        const shareButton = document.getElementById('btnShareResult');
+        navigator.clipboard.writeText(textToShare)
+            .then(() => {
+                shareButton.setAttribute('aria-label', 'შედეგი დაკოპირდა');
+                shareButton.title = 'დაკოპირდა';
+            })
+            .catch(error => {
+                console.error('Could not copy the result.', error);
+                shareButton.setAttribute('aria-label', 'კოპირება ვერ მოხერხდა');
+                shareButton.title = 'კოპირება ვერ მოხერხდა';
+            });
     });
 
 }); // <--- END OF CALCULATE FUNCTION
@@ -787,7 +1058,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Load saved forwarder
     const savedForwarder = localStorage.getItem('calc_forwarder');
-    const savedCustomRate = localStorage.getItem('calc_custom_rate');
+    const legacyCustomShippingRate = localStorage.getItem('calc_custom_rate');
+    const savedCustomShippingRate = localStorage.getItem('calc_custom_shipping_rate') || legacyCustomShippingRate;
 
     let initialForwarderId = 'inex';
 
@@ -803,15 +1075,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (initialForwarderId === 'custom') {
         customShippingInputWrapper.classList.remove('hidden');
-        if (savedCustomRate) {
-            document.getElementById('customShippingRate').value = savedCustomRate;
+        if (savedCustomShippingRate) {
+            document.getElementById('customShippingRate').value = savedCustomShippingRate;
         }
     }
 
     // 3. Load Exchange Rate Placeholder
     const customRateInput = document.getElementById('customRate');
-    const defaultRate = await fetchExchangeRate(parseFloat(savedCustomRate));
-    if (customRateInput && (isNaN(parseFloat(savedCustomRate)) || parseFloat(savedCustomRate) <= 0)) {
+    const defaultRate = await fetchExchangeRate(NaN);
+    if (customRateInput) {
         customRateInput.placeholder = `ავტომატური (${defaultRate.toFixed(4)})`;
     }
 
@@ -836,5 +1108,14 @@ forwarderSelect.addEventListener('change', (e) => {
 
 // Save custom rate on input
 document.getElementById('customShippingRate').addEventListener('input', (e) => {
-    localStorage.setItem('calc_custom_rate', e.target.value);
+    localStorage.setItem('calc_custom_shipping_rate', e.target.value);
+});
+
+document.getElementById('customRate').addEventListener('input', event => {
+    const value = parseFloat(event.target.value);
+    if (event.target.value.trim() && Number.isFinite(value) && value > 0) {
+        renderExchangeRateStatus({ rate: value, source: 'manual', validFrom: null });
+    } else {
+        fetchExchangeRate(NaN);
+    }
 });

@@ -1,0 +1,140 @@
+(function (root, factory) {
+    const api = factory();
+
+    if (typeof module === 'object' && module.exports) {
+        module.exports = api;
+    }
+
+    root.CalculatorCore = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    'use strict';
+
+    const CUSTOMS_VALUE_THRESHOLD_GEL = 300;
+    const CUSTOMS_WEIGHT_LIMIT_KG = 30;
+    const VAT_RATE = 0.18;
+    const TREASURY_FEE_GEL = 20;
+    const DECLARATION_PREPARATION_FEE_GEL = 10;
+
+    function isPositiveFinite(value) {
+        return Number.isFinite(value) && value > 0;
+    }
+
+    function convertWeightToKg(weight, unit) {
+        if (unit === 'ounces') return weight * 0.0283495;
+        if (unit === 'pounds') return weight * 0.453592;
+        return weight;
+    }
+
+    function calculateVolumetricWeightKg(lengthCm, widthCm, heightCm) {
+        return (lengthCm * widthCm * heightCm) / 6000;
+    }
+
+    function validateCalculationInputs(input) {
+        const errors = [];
+
+        if (!Number.isFinite(input.priceUSD) || input.priceUSD < 0) {
+            errors.push({ field: 'price', message: 'ნივთის ფასი უნდა იყოს 0 ან მეტი.' });
+        }
+
+        if (!isPositiveFinite(input.weightInput)) {
+            errors.push({ field: 'weight', message: 'წონა უნდა იყოს 0-ზე მეტი.' });
+        }
+
+        if (!isPositiveFinite(input.shippingRatePerKG)) {
+            errors.push({ field: 'shippingRate', message: 'ტრანსპორტირების ტარიფი უნდა იყოს 0-ზე მეტი.' });
+        }
+
+        if (!isPositiveFinite(input.exchangeRate)) {
+            errors.push({ field: 'exchangeRate', message: 'USD/GEL კურსი უნდა იყოს 0-ზე მეტი.' });
+        }
+
+        if (input.useVolumetric) {
+            const dimensions = input.dimensions || {};
+            if (
+                !isPositiveFinite(dimensions.lengthCm) ||
+                !isPositiveFinite(dimensions.widthCm) ||
+                !isPositiveFinite(dimensions.heightCm)
+            ) {
+                errors.push({
+                    field: 'dimensions',
+                    message: 'მოცულობითი წონისთვის სამივე ზომა უნდა იყოს 0-ზე მეტი.'
+                });
+            }
+        }
+
+        return { valid: errors.length === 0, errors };
+    }
+
+    function calculateCosts(input) {
+        const validation = validateCalculationInputs(input);
+        if (!validation.valid) {
+            const error = new Error(validation.errors[0].message);
+            error.validationErrors = validation.errors;
+            throw error;
+        }
+
+        const physicalWeightKg = convertWeightToKg(input.weightInput, input.weightUnit);
+        const dimensions = input.dimensions || {};
+        const volumetricWeightKg = input.useVolumetric
+            ? calculateVolumetricWeightKg(
+                dimensions.lengthCm,
+                dimensions.widthCm,
+                dimensions.heightCm
+            )
+            : 0;
+        const chargeableWeightKg = Math.max(physicalWeightKg, volumetricWeightKg);
+        const usesVolumetricWeight = input.useVolumetric && volumetricWeightKg > physicalWeightKg;
+
+        const itemCostGEL = input.priceUSD * input.exchangeRate;
+        const shippingCostUSD = chargeableWeightKg * input.shippingRatePerKG;
+        const shippingCostGEL = shippingCostUSD * input.exchangeRate;
+        const estimatedCustomsValueGEL = itemCostGEL + shippingCostGEL;
+
+        // The postal exemption is treated conservatively: the estimated customs
+        // value must be below 300 GEL and the physical weight must not exceed 30 kg.
+        const reachesValueThreshold = estimatedCustomsValueGEL >= CUSTOMS_VALUE_THRESHOLD_GEL;
+        const exceedsWeightLimit = physicalWeightKg > CUSTOMS_WEIGHT_LIMIT_KG;
+        const hasTax = reachesValueThreshold || exceedsWeightLimit;
+        const vatGEL = hasTax ? estimatedCustomsValueGEL * VAT_RATE : 0;
+        const serviceFeesGEL = hasTax
+            ? TREASURY_FEE_GEL + DECLARATION_PREPARATION_FEE_GEL
+            : 0;
+        const totalCostGEL = estimatedCustomsValueGEL + vatGEL + serviceFeesGEL;
+
+        const taxReasons = [];
+        if (reachesValueThreshold) taxReasons.push('estimated-value');
+        if (exceedsWeightLimit) taxReasons.push('physical-weight');
+
+        return {
+            physicalWeightKg,
+            volumetricWeightKg,
+            chargeableWeightKg,
+            usesVolumetricWeight,
+            itemCostGEL,
+            shippingCostUSD,
+            shippingCostGEL,
+            estimatedCustomsValueGEL,
+            reachesValueThreshold,
+            exceedsWeightLimit,
+            hasTax,
+            taxReasons,
+            vatGEL,
+            treasuryFeeGEL: hasTax ? TREASURY_FEE_GEL : 0,
+            declarationPreparationFeeGEL: hasTax ? DECLARATION_PREPARATION_FEE_GEL : 0,
+            serviceFeesGEL,
+            totalCostGEL
+        };
+    }
+
+    return {
+        CUSTOMS_VALUE_THRESHOLD_GEL,
+        CUSTOMS_WEIGHT_LIMIT_KG,
+        VAT_RATE,
+        TREASURY_FEE_GEL,
+        DECLARATION_PREPARATION_FEE_GEL,
+        convertWeightToKg,
+        calculateVolumetricWeightKg,
+        validateCalculationInputs,
+        calculateCosts
+    };
+});

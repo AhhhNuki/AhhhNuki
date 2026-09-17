@@ -52,6 +52,7 @@
         }
     </script>
     
+    <script src="calculator-core.js" defer></script>
     <script src="list.js" defer></script>
     <script src="script.js" defer></script>
     
@@ -120,7 +121,7 @@
               "name": "რა არის საბაჟო ლიმიტი საქართველოში?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "თუ თქვენი ამანათის ჯამური ღირებულება აღემატება 300 ლარს, ის ექვემდებარება განბაჟებას. თქვენ მოგიწევთ გადაიხადოთ ღირებულების 18% (დღგ) და დეკლარაციის მომსახურების საფასური. ლიმიტი ასევე ვრცელდება წონაზე, რომელიც არ უნდა აღემატებოდეს 30 კგ-ს."
+                "text": "კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. საბოლოო დარიცხვას და საქონლის კლასიფიკაციას განსაზღვრავს საქართველოს შემოსავლების სამსახური."
               }
             },
             {
@@ -166,7 +167,7 @@
         </div>
 
         <!-- Recent Rate Change Alert Banner -->
-        <div id="rateAlertBanner" class="hidden mb-6 p-4 rounded-xl bg-brand-card border border-brand-lime/30 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+        <div id="rateAlertBanner" role="status" class="hidden mb-6 p-4 rounded-xl bg-brand-card border border-brand-lime/30 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
             <div class="flex items-center gap-3">
                 <span class="flex h-3 w-3 relative shrink-0">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-lime opacity-75"></span>
@@ -181,7 +182,7 @@
                 <button type="button" id="btnAlertOpenTracker" class="text-xs bg-brand-lime/20 text-brand-lime border border-brand-lime/40 px-3 py-1.5 rounded-lg hover:bg-brand-lime hover:text-black transition-colors font-medium">
                     ცვლილებების ნახვა
                 </button>
-                <button type="button" id="btnDismissAlert" class="text-gray-400 hover:text-white px-2 py-1" title="დახურვა">
+                <button type="button" id="btnDismissAlert" class="text-gray-400 hover:text-white px-2 py-1" title="დახურვა" aria-label="შეტყობინების დახურვა">
                     ✕
                 </button>
             </div>
@@ -192,18 +193,18 @@
             <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl">
                 
                 <div class="mb-5">
-                    <label class="block text-sm font-medium text-brand-text-muted mb-2">ნივთის ფასი (USD)</label>
+                    <label for="price" class="block text-sm font-medium text-brand-text-muted mb-2">ნივთის ფასი (USD)</label>
                     <div class="relative group">
                         <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-lime transition-colors">$</span>
-                        <input type="number" id="price" placeholder="0.00" 
+                        <input type="number" id="price" placeholder="0.00" min="0" step="0.01" inputmode="decimal"
                             class="w-full bg-brand-input border border-brand-border rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none transition-all text-white placeholder-gray-600">
                     </div>
                 </div>
 
                 <div class="mb-5">
-                    <label class="block text-sm font-medium text-brand-text-muted mb-2">წონა</label>
+                    <label for="weight" class="block text-sm font-medium text-brand-text-muted mb-2">წონა</label>
                     <div class="flex gap-4 mb-3">
-                        <input type="number" id="weight" placeholder="მაგ: 2.5" 
+                        <input type="number" id="weight" placeholder="მაგ: 2.5" min="0.01" step="0.01" inputmode="decimal"
                             class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none transition-all text-white placeholder-gray-600">
                         
                         <select id="weightUnit" class="bg-brand-input border border-brand-border rounded-xl px-2 text-white focus:ring-1 focus:ring-brand-lime outline-none text-sm w-24">
@@ -221,16 +222,16 @@
                         
                         <div id="volumetricInputs" class="hidden grid grid-cols-3 gap-2 mt-3 p-3 bg-brand-input/50 rounded-xl border border-brand-border border-dashed">
                             <div>
-                                <label class="text-xs text-gray-500 block mb-1">სიგრძე (cm)</label>
-                                <input type="number" id="dimL" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                                <label for="dimL" class="text-xs text-gray-500 block mb-1">სიგრძე (cm)</label>
+                                <input type="number" id="dimL" placeholder="0" min="0.01" step="0.1" inputmode="decimal" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
                             </div>
                             <div>
-                                <label class="text-xs text-gray-500 block mb-1">სიგანე (cm)</label>
-                                <input type="number" id="dimW" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                                <label for="dimW" class="text-xs text-gray-500 block mb-1">სიგანე (cm)</label>
+                                <input type="number" id="dimW" placeholder="0" min="0.01" step="0.1" inputmode="decimal" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
                             </div>
                             <div>
-                                <label class="text-xs text-gray-500 block mb-1">სიმაღლე (cm)</label>
-                                <input type="number" id="dimH" placeholder="0" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
+                                <label for="dimH" class="text-xs text-gray-500 block mb-1">სიმაღლე (cm)</label>
+                                <input type="number" id="dimH" placeholder="0" min="0.01" step="0.1" inputmode="decimal" class="w-full bg-brand-bg border border-brand-border rounded-lg p-2 text-sm text-white focus:border-brand-lime outline-none">
                             </div>
                         </div>
                     </div>
@@ -247,7 +248,7 @@
                     </div>
                     <!-- Custom Styled Dropdown Container -->
                     <div class="relative" id="customDropdownWrapper">
-                        <button type="button" id="customSelectTrigger" class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 text-white flex items-center justify-between focus:ring-1 focus:ring-brand-lime outline-none cursor-pointer transition-colors hover:border-brand-lime/40">
+                        <button type="button" id="customSelectTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSelectMenu" class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 text-white flex items-center justify-between focus:ring-1 focus:ring-brand-lime outline-none cursor-pointer transition-colors hover:border-brand-lime/40">
                             <div id="customSelectTriggerContent" class="flex items-center justify-between w-full pr-2 text-sm truncate">
                                 <span>იტვირთება...</span>
                             </div>
@@ -257,7 +258,7 @@
                         </button>
 
                         <!-- Custom Dropdown Menu with colored badges -->
-                        <div id="customSelectMenu" class="hidden absolute left-0 right-0 top-full mt-2 z-40 bg-brand-card border border-brand-border rounded-xl shadow-2xl p-1.5 space-y-1 max-h-72 overflow-y-auto backdrop-blur-md">
+                        <div id="customSelectMenu" role="listbox" aria-label="გადამზიდი კომპანია" class="hidden absolute left-0 right-0 top-full mt-2 z-40 bg-brand-card border border-brand-border rounded-xl shadow-2xl p-1.5 space-y-1 max-h-72 overflow-y-auto backdrop-blur-md">
                             <!-- Populated dynamically via script.js -->
                         </div>
 
@@ -286,16 +287,18 @@
                     <div id="customShippingInputWrapper" class="hidden mt-2">
                          <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                            <input type="number" id="customShippingRate" placeholder="ტრანსპორტირების ტარიფი ($/kg)" 
+                            <label for="customShippingRate" class="sr-only">ტრანსპორტირების ინდივიდუალური ტარიფი</label>
+                            <input type="number" id="customShippingRate" placeholder="ტრანსპორტირების ტარიფი ($/kg)" min="0.01" step="0.01" inputmode="decimal"
                                 class="w-full bg-brand-input border border-brand-border rounded-xl py-3 pl-8 pr-4 text-sm focus:ring-1 focus:ring-brand-lime outline-none text-white">
                         </div>
                     </div>
                 </div>
 
                 <div class="mb-8">
-                    <label class="block text-sm font-medium text-brand-text-muted mb-2">კურსი (USD to GEL)</label>
-                    <input type="number" id="customRate" placeholder="" 
+                    <label for="customRate" class="block text-sm font-medium text-brand-text-muted mb-2">კურსი (USD to GEL)</label>
+                    <input type="number" id="customRate" placeholder="" min="0.01" step="0.0001" inputmode="decimal"
                         class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none transition-all text-white placeholder-gray-600">
+                    <p id="exchangeRateStatus" class="text-xs text-gray-500 mt-2" aria-live="polite"></p>
                 </div>
 
                 <button id="calculate" class="w-full bg-brand-lime hover:bg-[#b0d648] text-black font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(203,245,92,0.15)] transform active:scale-95 transition-all duration-200">
@@ -305,7 +308,7 @@
 
             <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl flex flex-col relative h-full">
                 <h3 class="text-xl font-semibold text-white mb-6 border-b border-brand-border pb-4">დეტალური ხარჯები</h3>
-                <div id="result" class="flex-grow flex flex-col justify-center">
+                <div id="result" aria-live="polite" aria-atomic="true" class="flex-grow flex flex-col justify-center">
                     <div class="text-center text-brand-text-muted py-10">
                         შეიყვანეთ მონაცემები
                     </div>
@@ -337,7 +340,8 @@
                             </span>
                     </summary>
                     <div class="mt-4 text-brand-text-muted text-base leading-relaxed">
-                        თუ თქვენი ამანათის ჯამური ღირებულება აღემატება 300 ლარს, ის ექვემდებარება განბაჟებას. თქვენ მოგიწევთ გადაიხადოთ ღირებულების 18% (დღგ) და დეკლარაციის მომსახურების საფასური. ლიმიტი ასევე ვრცელდება წონაზე, რომელიც არ უნდა აღემატებოდეს 30 კგ-ს.
+                        კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. გამოთვლა საორიენტაციოა — საბოლოო დარიცხვას, შეღავათს და საქონლის კლასიფიკაციას განსაზღვრავს
+                        <a href="https://www.rs.ge/Parcelinfo" target="_blank" rel="noopener noreferrer" class="text-brand-lime hover:underline">საქართველოს შემოსავლების სამსახური</a>.
                     </div>
                 </details>
         
@@ -374,7 +378,7 @@
     </div>
 
     <!-- Price Tracker & History Modal -->
-    <div id="priceTrackerModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="priceTrackerModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="priceTrackerTitle" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-brand-card border border-brand-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <!-- Modal Header -->
             <div class="p-5 border-b border-brand-border flex items-center justify-between bg-brand-input/50">
@@ -383,11 +387,11 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-lg md:text-xl font-bold text-white">ტარიფების მონიტორინგი & ისტორია</h3>
+                        <h3 id="priceTrackerTitle" class="text-lg md:text-xl font-bold text-white">ტარიფების მონიტორინგი & ისტორია</h3>
                         <p class="text-xs text-brand-text-muted">გადამზიდი კომპანიების ფასების ცვლილებების დეტალური ჟურნალი</p>
                     </div>
                 </div>
-                <button type="button" id="btnCloseTrackerModal" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-brand-border transition-colors cursor-pointer" title="დახურვა">
+                <button type="button" id="btnCloseTrackerModal" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-brand-border transition-colors cursor-pointer" title="დახურვა" aria-label="ტარიფების ისტორიის დახურვა">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
