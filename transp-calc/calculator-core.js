@@ -29,6 +29,78 @@
         return (lengthCm * widthCm * heightCm) / 6000;
     }
 
+    function validateCartItems(items) {
+        const errors = [];
+        if (!Array.isArray(items) || items.length === 0) {
+            return {
+                valid: false,
+                errors: [{ field: 'cart', index: -1, message: 'კალათაში დაამატეთ მინიმუმ ერთი ნივთი.' }]
+            };
+        }
+
+        items.forEach((item, index) => {
+            if (!Number.isFinite(item.priceUSD) || item.priceUSD < 0) {
+                errors.push({
+                    field: 'cartPrice',
+                    index,
+                    message: `${index + 1}-ე ნივთის ფასი უნდა იყოს 0 ან მეტი.`
+                });
+            }
+            if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+                errors.push({
+                    field: 'cartQuantity',
+                    index,
+                    message: `${index + 1}-ე ნივთის რაოდენობა უნდა იყოს დადებითი მთელი რიცხვი.`
+                });
+            }
+        });
+
+        return { valid: errors.length === 0, errors };
+    }
+
+    function calculateCartSubtotalUSD(items) {
+        const validation = validateCartItems(items);
+        if (!validation.valid) {
+            const error = new Error(validation.errors[0].message);
+            error.validationErrors = validation.errors;
+            throw error;
+        }
+
+        return items.reduce((total, item) => total + (item.priceUSD * item.quantity), 0);
+    }
+
+    function calculateCartThresholdStatus(items, exchangeRate, safetyBufferGEL = 10) {
+        if (!isPositiveFinite(exchangeRate)) {
+            throw new Error('USD/GEL კურსი უნდა იყოს 0-ზე მეტი.');
+        }
+        if (!Number.isFinite(safetyBufferGEL) || safetyBufferGEL < 0) {
+            throw new Error('უსაფრთხოების ბუფერი უნდა იყოს 0 ან მეტი.');
+        }
+
+        const subtotalUSD = calculateCartSubtotalUSD(items);
+        const goodsSubtotalGEL = subtotalUSD * exchangeRate;
+        const remainingGEL = CUSTOMS_VALUE_THRESHOLD_GEL - goodsSubtotalGEL;
+        const safeLimitGEL = Math.max(0, CUSTOMS_VALUE_THRESHOLD_GEL - safetyBufferGEL);
+        const safeRemainingGEL = safeLimitGEL - goodsSubtotalGEL;
+        const usedPercent = Math.max(0, (goodsSubtotalGEL / CUSTOMS_VALUE_THRESHOLD_GEL) * 100);
+
+        return {
+            subtotalUSD,
+            goodsSubtotalGEL,
+            remainingGEL,
+            remainingUSD: remainingGEL / exchangeRate,
+            overageGEL: Math.max(0, -remainingGEL),
+            overageUSD: Math.max(0, -remainingGEL / exchangeRate),
+            safetyBufferGEL,
+            safeLimitGEL,
+            safeRemainingGEL,
+            safeRemainingUSD: safeRemainingGEL / exchangeRate,
+            usedPercent,
+            reachesGoodsThreshold: goodsSubtotalGEL >= CUSTOMS_VALUE_THRESHOLD_GEL,
+            exceedsSafeLimit: goodsSubtotalGEL >= safeLimitGEL
+        };
+    }
+
     function validateCalculationInputs(input) {
         const errors = [];
 
@@ -134,6 +206,9 @@
         DECLARATION_PREPARATION_FEE_GEL,
         convertWeightToKg,
         calculateVolumetricWeightKg,
+        validateCartItems,
+        calculateCartSubtotalUSD,
+        calculateCartThresholdStatus,
         validateCalculationInputs,
         calculateCosts
     };

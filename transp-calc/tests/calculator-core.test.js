@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const {
     convertWeightToKg,
     calculateVolumetricWeightKg,
+    validateCartItems,
+    calculateCartSubtotalUSD,
+    calculateCartThresholdStatus,
     validateCalculationInputs,
     calculateCosts
 } = require('../calculator-core.js');
@@ -120,4 +123,79 @@ test('keeps a low-value package at or below 30 kg exempt in the estimate', () =>
     assert.equal(result.reachesValueThreshold, false);
     assert.equal(result.hasTax, false);
     assert.equal(result.vatGEL, 0);
+});
+
+test('calculates a cart subtotal using item quantities', () => {
+    const items = [
+        { priceUSD: 50, quantity: 2 },
+        { priceUSD: 19.99, quantity: 1 }
+    ];
+
+    assert.equal(calculateCartSubtotalUSD(items), 119.99);
+});
+
+test('rejects invalid cart prices and quantities', () => {
+    const validation = validateCartItems([
+        { priceUSD: -1, quantity: 1 },
+        { priceUSD: 10, quantity: 0 }
+    ]);
+
+    assert.equal(validation.valid, false);
+    assert.deepEqual(
+        validation.errors.map(error => error.field),
+        ['cartPrice', 'cartQuantity']
+    );
+});
+
+test('reports remaining cart allowance and the configured safety buffer', () => {
+    const status = calculateCartThresholdStatus(
+        [{ priceUSD: 100, quantity: 1 }],
+        2.6,
+        10
+    );
+
+    assert.equal(status.goodsSubtotalGEL, 260);
+    assert.equal(status.remainingGEL, 40);
+    assert.equal(status.safeRemainingGEL, 30);
+    assert.equal(status.reachesGoodsThreshold, false);
+    assert.equal(status.exceedsSafeLimit, false);
+});
+
+test('reports cart overage when goods reach the 300 GEL threshold', () => {
+    const status = calculateCartThresholdStatus(
+        [{ priceUSD: 120, quantity: 1 }],
+        2.6,
+        10
+    );
+
+    assert.equal(status.goodsSubtotalGEL, 312);
+    assert.equal(status.remainingGEL, -12);
+    assert.equal(status.overageGEL, 12);
+    assert.equal(status.reachesGoodsThreshold, true);
+});
+
+test('treats exactly 300 GEL as reaching the goods threshold', () => {
+    const status = calculateCartThresholdStatus(
+        [{ priceUSD: 100, quantity: 1 }],
+        3,
+        10
+    );
+
+    assert.equal(status.goodsSubtotalGEL, 300);
+    assert.equal(status.remainingGEL, 0);
+    assert.equal(status.overageGEL, 0);
+    assert.equal(status.reachesGoodsThreshold, true);
+});
+
+test('enters the warning zone at the configured safe limit', () => {
+    const status = calculateCartThresholdStatus(
+        [{ priceUSD: 100, quantity: 1 }],
+        2.9,
+        10
+    );
+
+    assert.equal(status.goodsSubtotalGEL, 290);
+    assert.equal(status.safeRemainingGEL, 0);
+    assert.equal(status.reachesGoodsThreshold, false);
+    assert.equal(status.exceedsSafeLimit, true);
 });

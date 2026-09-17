@@ -57,6 +57,7 @@ function loadAndRenderHistory() {
     }
 
     history.slice().reverse().forEach(rawItem => {
+        const isCart = rawItem?.calculationType === 'cart' && Array.isArray(rawItem?.items);
         const item = {
             id: rawItem?.id,
             title: typeof rawItem?.title === 'string' && rawItem.title.trim()
@@ -70,7 +71,11 @@ function loadAndRenderHistory() {
             rate: normalizeNumber(rawItem?.rate),
             deliveryGEL: normalizeNumber(rawItem?.deliveryGEL),
             taxTotal: normalizeNumber(rawItem?.taxTotal),
-            forwarderName: typeof rawItem?.forwarderName === 'string' ? rawItem.forwarderName : ''
+            forwarderName: typeof rawItem?.forwarderName === 'string' ? rawItem.forwarderName : '',
+            calculationType: isCart ? 'cart' : 'single',
+            itemCount: isCart
+                ? rawItem.items.reduce((sum, cartItem) => sum + Math.max(0, Math.trunc(normalizeNumber(cartItem?.quantity, 1))), 0)
+                : 1
         };
 
         const card = document.createElement('div');
@@ -99,6 +104,12 @@ function loadAndRenderHistory() {
         rate.className = 'text-[10px] text-gray-500 bg-gray-900/50 border border-brand-border px-2 py-1 rounded';
         rate.textContent = `კურსი: ${item.rate.toFixed(4)}`;
         metadata.append(date, rate);
+        if (isCart) {
+            const type = document.createElement('span');
+            type.className = 'text-[10px] text-brand-lime bg-brand-lime/10 border border-brand-lime/20 px-2 py-1 rounded';
+            type.textContent = `კალათა • ${item.itemCount} ცალი`;
+            metadata.appendChild(type);
+        }
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
@@ -113,7 +124,7 @@ function loadAndRenderHistory() {
         details.className = 'space-y-2 text-sm text-gray-400 flex-grow';
         details.append(
             createSummaryRow(
-                `ღირებულება ($${item.priceUSD.toFixed(2)}):`,
+                `${isCart ? 'ნივთების ჯამი' : 'ღირებულება'} ($${item.priceUSD.toFixed(2)}):`,
                 `${(item.priceUSD * item.rate).toFixed(2)} ₾`
             ),
             createSummaryRow(
@@ -137,6 +148,14 @@ function loadAndRenderHistory() {
             details.append(exempt);
         }
 
+        const recalculateButton = document.createElement('button');
+        recalculateButton.type = 'button';
+        recalculateButton.className = 'mt-4 w-full rounded-lg border border-brand-lime/30 bg-brand-lime/10 px-3 py-2 text-sm font-medium text-brand-lime hover:bg-brand-lime hover:text-black transition-colors';
+        recalculateButton.textContent = 'მიმდინარე ფასებით გადათვლა';
+        recalculateButton.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('calculator:recalculate', { detail: rawItem }));
+        });
+
         const footer = document.createElement('div');
         footer.className = 'mt-4 pt-3 border-t border-brand-border flex justify-between items-center';
         const totalLabel = document.createElement('span');
@@ -147,7 +166,7 @@ function loadAndRenderHistory() {
         totalValue.textContent = `${item.total.toFixed(2)} ₾`;
         footer.append(totalLabel, totalValue);
 
-        card.append(header, details, footer);
+        card.append(header, details, recalculateButton, footer);
         historyContainer.appendChild(card);
     });
 }
