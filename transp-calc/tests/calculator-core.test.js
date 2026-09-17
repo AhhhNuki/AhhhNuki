@@ -6,9 +6,12 @@ const {
     calculateVolumetricWeightKg,
     validateCartItems,
     calculateCartSubtotalUSD,
+    validateCartParcels,
+    calculateCartParcelWeights,
     calculateCartThresholdStatus,
     validateCalculationInputs,
-    calculateCosts
+    calculateCosts,
+    calculateCartCosts
 } = require('../calculator-core.js');
 
 function validInput(overrides = {}) {
@@ -147,6 +150,136 @@ test('rejects invalid cart prices and quantities', () => {
     );
 });
 
+test('calculates billable weight separately for every parcel', () => {
+    const items = [
+        {
+            priceUSD: 10,
+            quantity: 1,
+            weightInput: 10,
+            weightUnit: 'kilograms',
+            useVolumetric: true,
+            dimensions: { lengthCm: 20, widthCm: 20, heightCm: 30 }
+        },
+        {
+            priceUSD: 20,
+            quantity: 1,
+            weightInput: 1,
+            weightUnit: 'kilograms',
+            useVolumetric: true,
+            dimensions: { lengthCm: 40, widthCm: 40, heightCm: 30 }
+        }
+    ];
+
+    const weights = calculateCartParcelWeights(items);
+
+    assert.equal(weights.parcels[0].volumetricWeightKg, 2);
+    assert.equal(weights.parcels[0].chargeableWeightKg, 10);
+    assert.equal(weights.parcels[1].volumetricWeightKg, 8);
+    assert.equal(weights.parcels[1].chargeableWeightKg, 8);
+    assert.equal(weights.physicalWeightKg, 11);
+    assert.equal(weights.volumetricWeightKg, 10);
+    assert.equal(weights.chargeableWeightKg, 18);
+});
+
+test('requires weight and enabled dimensions on each cart parcel', () => {
+    const validation = validateCartParcels([
+        {
+            priceUSD: 10,
+            quantity: 1,
+            weightInput: 0,
+            weightUnit: 'kilograms',
+            useVolumetric: false
+        },
+        {
+            priceUSD: 20,
+            quantity: 1,
+            weightInput: 1,
+            weightUnit: 'kilograms',
+            useVolumetric: true,
+            dimensions: { lengthCm: 20, widthCm: 0, heightCm: 10 }
+        }
+    ]);
+
+    assert.equal(validation.valid, false);
+    assert.deepEqual(
+        validation.errors.map(error => error.field),
+        ['cartWeight', 'cartDimensions']
+    );
+});
+
+test('uses the sum of per-parcel billable weights for cart shipping', () => {
+    const result = calculateCartCosts({
+        items: [
+            {
+                priceUSD: 10,
+                quantity: 1,
+                weightInput: 10,
+                weightUnit: 'kilograms',
+                useVolumetric: true,
+                dimensions: { lengthCm: 20, widthCm: 20, heightCm: 30 }
+            },
+            {
+                priceUSD: 20,
+                quantity: 1,
+                weightInput: 1,
+                weightUnit: 'kilograms',
+                useVolumetric: true,
+                dimensions: { lengthCm: 40, widthCm: 40, heightCm: 30 }
+            }
+        ],
+        shippingRatePerKG: 5,
+        exchangeRate: 2
+    });
+
+    assert.equal(result.priceUSD, 30);
+    assert.equal(result.chargeableWeightKg, 18);
+    assert.equal(result.shippingCostUSD, 90);
+    assert.equal(result.shippingCostGEL, 180);
+    assert.equal(result.estimatedCustomsValueGEL, 240);
+    assert.equal(result.hasTax, false);
+});
+
+test('calculates customs charges once for the combined cart estimate', () => {
+    const parcel = priceUSD => ({
+        priceUSD,
+        quantity: 1,
+        weightInput: 1,
+        weightUnit: 'kilograms',
+        useVolumetric: false
+    });
+    const result = calculateCartCosts({
+        items: [parcel(70), parcel(70)],
+        shippingRatePerKG: 5,
+        exchangeRate: 2
+    });
+
+    assert.equal(result.estimatedCustomsValueGEL, 300);
+    assert.equal(result.vatGEL, 54);
+    assert.equal(result.treasuryFeeGEL, 20);
+    assert.equal(result.declarationPreparationFeeGEL, 10);
+    assert.equal(result.serviceFeesGEL, 30);
+    assert.equal(result.totalCostGEL, 384);
+});
+
+test('applies the 30 kg limit to the combined cart estimate', () => {
+    const result = calculateCartCosts({
+        items: [1, 2].map(() => ({
+            priceUSD: 1,
+            quantity: 1,
+            weightInput: 20,
+            weightUnit: 'kilograms',
+            useVolumetric: false
+        })),
+        shippingRatePerKG: 0.01,
+        exchangeRate: 2
+    });
+
+    assert.equal(result.physicalWeightKg, 40);
+    assert.equal(result.exceedsWeightLimit, true);
+    assert.equal(result.hasTax, true);
+    assert.equal(result.serviceFeesGEL, 30);
+});
+
 test('reports remaining cart allowance and the configured safety buffer', () => {
     const status = calculateCartThresholdStatus(
         [{ priceUSD: 100, quantity: 1 }],
@@ -198,4 +331,19 @@ test('enters the warning zone at the configured safe limit', () => {
     assert.equal(status.safeRemainingGEL, 0);
     assert.equal(status.reachesGoodsThreshold, false);
     assert.equal(status.exceedsSafeLimit, true);
+});
+
+test('previews the 300 GEL goods threshold for the combined cart', () => {
+    const status = calculateCartThresholdStatus(
+        [
+            { priceUSD: 60, quantity: 1 },
+            { priceUSD: 60, quantity: 1 }
+        ],
+        3,
+        10
+    );
+
+    assert.equal(status.goodsSubtotalGEL, 360);
+    assert.equal(status.overageGEL, 60);
+    assert.equal(status.reachesGoodsThreshold, true);
 });

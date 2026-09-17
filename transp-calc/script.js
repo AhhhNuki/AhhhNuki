@@ -149,6 +149,7 @@ const cartItemsList = document.getElementById('cartItemsList');
 const btnAddCartItem = document.getElementById('btnAddCartItem');
 const cartSafetyBufferInput = document.getElementById('cartSafetyBuffer');
 const weightLabel = document.getElementById('weightLabel');
+const sharedWeightFields = document.getElementById('sharedWeightFields');
 
 let calculationMode = 'single';
 let cartItems = [];
@@ -158,6 +159,9 @@ let recalculationSource = null;
 
 function createCartItem(initial = {}) {
     const hasPrice = initial.priceUSD !== '' && initial.priceUSD !== null && initial.priceUSD !== undefined;
+    const hasWeight = initial.weightInput !== '' && initial.weightInput !== null && initial.weightInput !== undefined;
+    const dimensions = initial.dimensions && typeof initial.dimensions === 'object' ? initial.dimensions : {};
+    const numberString = value => Number.isFinite(Number(value)) && Number(value) > 0 ? String(value) : '';
     return {
         id: nextCartItemId++,
         name: typeof initial.name === 'string' ? initial.name : '',
@@ -165,7 +169,17 @@ function createCartItem(initial = {}) {
         priceUSD: hasPrice && Number.isFinite(Number(initial.priceUSD)) ? String(initial.priceUSD) : '',
         quantity: Number.isInteger(Number(initial.quantity)) && Number(initial.quantity) > 0
             ? Number(initial.quantity)
-            : 1
+            : 1,
+        weightInput: hasWeight && Number.isFinite(Number(initial.weightInput)) ? String(initial.weightInput) : '',
+        weightUnit: ['kilograms', 'pounds', 'ounces'].includes(initial.weightUnit)
+            ? initial.weightUnit
+            : 'kilograms',
+        useVolumetric: Boolean(initial.useVolumetric),
+        dimensions: {
+            lengthCm: numberString(dimensions.lengthCm),
+            widthCm: numberString(dimensions.widthCm),
+            heightCm: numberString(dimensions.heightCm)
+        }
     };
 }
 
@@ -174,9 +188,10 @@ function resetCartThresholdPreview(message = 'შეიყვანეთ ნი
     const subtotalGEL = document.getElementById('cartSubtotalGEL');
     const bar = document.getElementById('cartThresholdBar');
     const statusMessage = document.getElementById('cartThresholdMessage');
+    const remainingLabel = document.getElementById('cartRemainingLabel');
     const remaining = document.getElementById('cartRemaining');
     const safeRemaining = document.getElementById('cartSafeRemaining');
-    if (!subtotalUSD || !subtotalGEL || !bar || !statusMessage || !remaining || !safeRemaining) return;
+    if (!subtotalUSD || !subtotalGEL || !bar || !statusMessage || !remainingLabel || !remaining || !safeRemaining) return;
 
     subtotalUSD.textContent = '$0.00';
     subtotalGEL.textContent = '0.00 ₾';
@@ -186,6 +201,7 @@ function resetCartThresholdPreview(message = 'შეიყვანეთ ნი
     statusMessage.classList.remove('text-amber-400', 'text-red-400');
     statusMessage.classList.add('text-brand-lime');
     statusMessage.textContent = message;
+    remainingLabel.textContent = 'დარჩენილი:';
     remaining.textContent = '—';
     safeRemaining.textContent = '—';
 }
@@ -196,7 +212,15 @@ function getCartCalculationItems() {
         name: item.name.trim(),
         url: item.url.trim(),
         priceUSD: parseFloat(item.priceUSD),
-        quantity: Number(item.quantity)
+        quantity: Number(item.quantity),
+        weightInput: parseFloat(item.weightInput),
+        weightUnit: item.weightUnit,
+        useVolumetric: item.useVolumetric,
+        dimensions: {
+            lengthCm: parseFloat(item.dimensions.lengthCm),
+            widthCm: parseFloat(item.dimensions.widthCm),
+            heightCm: parseFloat(item.dimensions.heightCm)
+        }
     }));
 }
 
@@ -227,13 +251,13 @@ function renderCartItems(focusItemId = null) {
         header.className = 'flex items-center justify-between gap-2';
         const number = document.createElement('span');
         number.className = 'text-xs font-semibold text-brand-lime';
-        number.textContent = `ნივთი ${index + 1}`;
+        number.textContent = `ამანათი ${index + 1}`;
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'text-xs text-gray-500 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed';
         remove.textContent = 'წაშლა';
         remove.disabled = cartItems.length === 1;
-        remove.setAttribute('aria-label', `${index + 1}-ე ნივთის წაშლა`);
+        remove.setAttribute('aria-label', `${index + 1}-ე ამანათის წაშლა`);
         remove.addEventListener('click', () => {
             cartItems = cartItems.filter(candidate => candidate.id !== item.id);
             renderCartItems();
@@ -241,7 +265,7 @@ function renderCartItems(focusItemId = null) {
         });
         header.append(number, remove);
 
-        const nameField = makeCartInput('დასახელება', 'text', item.name, 'block');
+        const nameField = makeCartInput('შიგთავსი / დასახელება', 'text', item.name, 'block');
         nameField.input.placeholder = 'მაგ: SSD';
         nameField.input.addEventListener('input', event => {
             item.name = event.target.value;
@@ -271,13 +295,88 @@ function renderCartItems(focusItemId = null) {
         row.className = 'grid grid-cols-[minmax(0,1fr)_90px] gap-2';
         row.append(priceField.wrapper, quantityField.wrapper);
 
+        const weightField = makeCartInput('ამანათის ფიზიკური წონა', 'number', item.weightInput, 'block');
+        weightField.input.min = '0.01';
+        weightField.input.step = '0.01';
+        weightField.input.inputMode = 'decimal';
+        weightField.input.placeholder = 'მაგ: 2.5';
+        weightField.input.dataset.cartWeight = String(item.id);
+        weightField.input.addEventListener('input', event => {
+            item.weightInput = event.target.value;
+        });
+
+        const unitWrapper = document.createElement('label');
+        unitWrapper.className = 'block';
+        const unitLabel = document.createElement('span');
+        unitLabel.className = 'text-[11px] text-gray-500 mb-1 block';
+        unitLabel.textContent = 'ერთეული';
+        const unitSelect = document.createElement('select');
+        unitSelect.className = 'w-full bg-brand-bg border border-brand-border rounded-lg px-2 py-2 text-sm text-white focus:border-brand-lime outline-none';
+        [
+            ['kilograms', 'Kg'],
+            ['pounds', 'Lbs'],
+            ['ounces', 'Oz']
+        ].forEach(([value, label]) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            option.selected = item.weightUnit === value;
+            unitSelect.appendChild(option);
+        });
+        unitSelect.addEventListener('change', event => {
+            item.weightUnit = event.target.value;
+        });
+        unitWrapper.append(unitLabel, unitSelect);
+
+        const weightRow = document.createElement('div');
+        weightRow.className = 'grid grid-cols-[minmax(0,1fr)_90px] gap-2';
+        weightRow.append(weightField.wrapper, unitWrapper);
+
+        const volumetricSection = document.createElement('div');
+        volumetricSection.className = 'pt-1';
+        const volumetricLabel = document.createElement('label');
+        volumetricLabel.className = 'flex items-center gap-2 cursor-pointer w-fit';
+        const volumetricToggle = document.createElement('input');
+        volumetricToggle.type = 'checkbox';
+        volumetricToggle.checked = item.useVolumetric;
+        volumetricToggle.className = 'accent-brand-lime w-4 h-4';
+        const volumetricText = document.createElement('span');
+        volumetricText.className = 'text-xs text-gray-400';
+        volumetricText.textContent = 'მოცულობითი წონის დათვლა ამ ამანათისთვის';
+        volumetricLabel.append(volumetricToggle, volumetricText);
+
+        const dimensionsRow = document.createElement('div');
+        dimensionsRow.className = `${item.useVolumetric ? '' : 'hidden '}grid grid-cols-3 gap-2 mt-2 p-2.5 rounded-lg bg-brand-bg/60 border border-brand-border border-dashed`;
+        const dimensionDefinitions = [
+            ['lengthCm', 'სიგრძე (cm)'],
+            ['widthCm', 'სიგანე (cm)'],
+            ['heightCm', 'სიმაღლე (cm)']
+        ];
+        dimensionDefinitions.forEach(([key, label]) => {
+            const field = makeCartInput(label, 'number', item.dimensions[key], 'block');
+            field.input.min = '0.01';
+            field.input.step = '0.1';
+            field.input.inputMode = 'decimal';
+            field.input.placeholder = '0';
+            field.input.dataset.cartDimension = String(item.id);
+            field.input.addEventListener('input', event => {
+                item.dimensions[key] = event.target.value;
+            });
+            dimensionsRow.appendChild(field.wrapper);
+        });
+        volumetricToggle.addEventListener('change', event => {
+            item.useVolumetric = event.target.checked;
+            dimensionsRow.classList.toggle('hidden', !item.useVolumetric);
+        });
+        volumetricSection.append(volumetricLabel, dimensionsRow);
+
         const urlField = makeCartInput('პროდუქტის ბმული (არასავალდებულო)', 'url', item.url, 'block');
         urlField.input.placeholder = 'https://...';
         urlField.input.addEventListener('input', event => {
             item.url = event.target.value;
         });
 
-        card.append(header, nameField.wrapper, row, urlField.wrapper);
+        card.append(header, nameField.wrapper, row, weightRow, volumetricSection, urlField.wrapper);
         cartItemsList.appendChild(card);
 
         if (focusItemId === item.id) priceField.input.focus();
@@ -289,9 +388,10 @@ function applyThresholdPresentation(status) {
     const subtotalGEL = document.getElementById('cartSubtotalGEL');
     const bar = document.getElementById('cartThresholdBar');
     const message = document.getElementById('cartThresholdMessage');
+    const remainingLabel = document.getElementById('cartRemainingLabel');
     const remaining = document.getElementById('cartRemaining');
     const safeRemaining = document.getElementById('cartSafeRemaining');
-    if (!subtotalUSD || !subtotalGEL || !bar || !message || !remaining || !safeRemaining) return;
+    if (!subtotalUSD || !subtotalGEL || !bar || !message || !remainingLabel || !remaining || !safeRemaining) return;
 
     subtotalUSD.textContent = `$${status.subtotalUSD.toFixed(2)}`;
     subtotalGEL.textContent = `${status.goodsSubtotalGEL.toFixed(2)} ₾`;
@@ -303,23 +403,26 @@ function applyThresholdPresentation(status) {
         bar.classList.add('bg-red-500');
         message.classList.add('text-red-400');
         message.textContent = status.overageGEL > 0
-            ? `300 ₾-ის ზღვარი გადაჭარბებულია ${status.overageGEL.toFixed(2)} ₾-ით`
-            : 'ნივთების ჯამმა ზუსტად მიაღწია 300 ₾-ის ზღვარს';
-        remaining.textContent = status.overageGEL > 0 ? `−${status.overageGEL.toFixed(2)} ₾` : '0.00 ₾';
+            ? `300 ₾-ის ზღვარი გადაცილებულია ${status.overageGEL.toFixed(2)} ₾-ით`
+            : 'საქონლის ჯამი 300 ₾-ის ზღვარს აღწევს';
+        remainingLabel.textContent = 'ზღვარს გადაცილებული:';
+        remaining.textContent = `${status.overageGEL.toFixed(2)} ₾ • $${status.overageUSD.toFixed(2)}`;
     } else if (status.exceedsSafeLimit) {
         bar.classList.add('bg-amber-400');
         message.classList.add('text-amber-400');
-        message.textContent = 'კალათა უსაფრთხოების ბუფერშია — კურსის ცვლილებამ შეიძლება ზღვარი გადააჭარბოს';
-        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ ($${status.remainingUSD.toFixed(2)})`;
+        message.textContent = 'საქონლის ჯამი უსაფრთხოების ბუფერშია';
+        remainingLabel.textContent = 'დარჩენილი:';
+        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ • $${status.remainingUSD.toFixed(2)}`;
     } else {
         bar.classList.add('bg-brand-lime');
         message.classList.add('text-brand-lime');
-        message.textContent = `გამოყენებულია ზღვრის ${Math.min(status.usedPercent, 100).toFixed(1)}%`;
-        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ ($${status.remainingUSD.toFixed(2)})`;
+        message.textContent = `გამოყენებულია 300 ₾-ის ზღვრის ${status.usedPercent.toFixed(1)}%`;
+        remainingLabel.textContent = 'დარჩენილი:';
+        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ • $${status.remainingUSD.toFixed(2)}`;
     }
 
     safeRemaining.textContent = status.safeRemainingGEL > 0
-        ? `${status.safeRemainingGEL.toFixed(2)} ₾ ($${status.safeRemainingUSD.toFixed(2)})`
+        ? `${status.safeRemainingGEL.toFixed(2)} ₾ • $${status.safeRemainingUSD.toFixed(2)}`
         : '0.00 ₾';
 }
 
@@ -360,6 +463,7 @@ function setCalculationMode(mode, options = {}) {
     btnSingleMode.className = `px-3 py-2.5 rounded-lg text-sm transition-colors ${!isCart ? 'font-semibold bg-brand-lime text-black' : 'font-medium text-gray-300 hover:text-white'}`;
     btnCartMode.className = `px-3 py-2.5 rounded-lg text-sm transition-colors ${isCart ? 'font-semibold bg-brand-lime text-black' : 'font-medium text-gray-300 hover:text-white'}`;
     weightLabel.textContent = isCart ? 'გზავნილის საერთო წონა' : 'წონა';
+    sharedWeightFields.classList.toggle('hidden', isCart);
 
     if (isCart && cartItems.length === 0) {
         cartItems = [createCartItem()];
@@ -1025,6 +1129,15 @@ function finiteNumber(value, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
 function formatSignedMoney(value, currency = '₾') {
     const safeValue = finiteNumber(value);
     const sign = safeValue > 0 ? '+' : safeValue < 0 ? '−' : '';
@@ -1071,12 +1184,18 @@ calculateButton.addEventListener('click', async () => {
     let currentCartItems = [];
     if (calculationMode === 'cart') {
         currentCartItems = getCartCalculationItems();
-        const cartValidation = CalculatorCore.validateCartItems(currentCartItems);
+        const cartValidation = CalculatorCore.validateCartParcels(currentCartItems);
         if (!cartValidation.valid) {
             const firstError = cartValidation.errors[0];
             showCalculationError(firstError.message);
             if (firstError.index >= 0) {
-                cartItemsList.querySelector(`[data-cart-price="${cartItems[firstError.index]?.id}"]`)?.focus();
+                const itemId = cartItems[firstError.index]?.id;
+                const selector = firstError.field === 'cartWeight'
+                    ? `[data-cart-weight="${itemId}"]`
+                    : firstError.field === 'cartDimensions'
+                        ? `[data-cart-dimension="${itemId}"]`
+                        : `[data-cart-price="${itemId}"]`;
+                cartItemsList.querySelector(selector)?.focus();
             }
             return;
         }
@@ -1099,7 +1218,7 @@ calculateButton.addEventListener('click', async () => {
         showCalculationError('ნივთის ფასი უნდა იყოს 0 ან მეტი.', 'price');
         return;
     }
-    if (!Number.isFinite(weightInput) || weightInput <= 0) {
+    if (calculationMode === 'single' && (!Number.isFinite(weightInput) || weightInput <= 0)) {
         showCalculationError('წონა უნდა იყოს 0-ზე მეტი.', 'weight');
         return;
     }
@@ -1150,30 +1269,38 @@ calculateButton.addEventListener('click', async () => {
     calculateButton.textContent = originalButtonText;
 
     // 6. Final calculations are kept in a pure, testable module.
-    const calculationInput = {
-        priceUSD,
-        weightInput,
-        weightUnit,
-        shippingRatePerKG,
-        exchangeRate,
-        useVolumetric: toggleVolumetric.checked,
-        dimensions
-    };
-    const validation = CalculatorCore.validateCalculationInputs(calculationInput);
-    if (!validation.valid) {
-        const firstError = validation.errors[0];
-        const fieldMap = {
-            price: 'price',
-            weight: 'weight',
-            shippingRate: selectedForwarderId === 'custom' ? 'customShippingRate' : null,
-            exchangeRate: 'customRate',
-            dimensions: 'dimL'
+    let calculation;
+    if (calculationMode === 'cart') {
+        calculation = CalculatorCore.calculateCartCosts({
+            items: currentCartItems,
+            shippingRatePerKG,
+            exchangeRate
+        });
+    } else {
+        const calculationInput = {
+            priceUSD,
+            weightInput,
+            weightUnit,
+            shippingRatePerKG,
+            exchangeRate,
+            useVolumetric: toggleVolumetric.checked,
+            dimensions
         };
-        showCalculationError(firstError.message, fieldMap[firstError.field]);
-        return;
+        const validation = CalculatorCore.validateCalculationInputs(calculationInput);
+        if (!validation.valid) {
+            const firstError = validation.errors[0];
+            const fieldMap = {
+                price: 'price',
+                weight: 'weight',
+                shippingRate: selectedForwarderId === 'custom' ? 'customShippingRate' : null,
+                exchangeRate: 'customRate',
+                dimensions: 'dimL'
+            };
+            showCalculationError(firstError.message, fieldMap[firstError.field]);
+            return;
+        }
+        calculation = CalculatorCore.calculateCosts(calculationInput);
     }
-
-    const calculation = CalculatorCore.calculateCosts(calculationInput);
     const realWeightKG = calculation.physicalWeightKg;
     const volWeightKG = calculation.volumetricWeightKg;
     const chargeableWeightKG = calculation.chargeableWeightKg;
@@ -1197,87 +1324,160 @@ calculateButton.addEventListener('click', async () => {
                 ? 'შენახული ოფლაინ კურსი'
                 : 'საორიენტაციო სარეზერვო კურსი';
     const safetyBuffer = Math.max(0, finiteNumber(cartSafetyBufferInput?.value, 10));
-    const cartThresholdStatus = calculationMode === 'cart'
-        ? CalculatorCore.calculateCartThresholdStatus(currentCartItems, exchangeRate, safetyBuffer)
-        : null;
     const comparisonPanel = renderRecalculationComparison({
         priceUSD,
         exchangeRate,
         shippingRatePerKG,
         totalCostGEL
     });
+    const cartInvoiceItemRows = calculationMode === 'cart'
+        ? currentCartItems.map((item, index) => {
+            const lineTotalUSD = item.priceUSD * item.quantity;
+            const lineTotalGEL = lineTotalUSD * exchangeRate;
+            const name = escapeHtml(item.name || `ამანათი ${index + 1}`);
+            return `
+                <div class="grid grid-cols-[minmax(0,1fr)_36px_66px_78px] gap-2 items-start py-2.5 border-b border-brand-border/70 text-xs last:border-b-0">
+                    <div class="min-w-0">
+                        <div class="text-gray-200 font-medium break-words">${name}</div>
+                        <div class="text-[10px] text-gray-600 mt-0.5">ამანათი ${index + 1}</div>
+                    </div>
+                    <div class="text-center text-gray-400">${item.quantity}</div>
+                    <div class="text-right text-gray-400">$${item.priceUSD.toFixed(2)}</div>
+                    <div class="text-right">
+                        <div class="text-white font-medium">$${lineTotalUSD.toFixed(2)}</div>
+                        <div class="text-[10px] text-gray-500">${lineTotalGEL.toFixed(2)} ₾</div>
+                    </div>
+                </div>
+            `;
+        }).join('')
+        : '';
+    const cartInvoiceShippingRows = calculationMode === 'cart'
+        ? calculation.parcels.map((parcel, index) => {
+            const shippingUSD = parcel.chargeableWeightKg * shippingRatePerKG;
+            const shippingGEL = shippingUSD * exchangeRate;
+            const name = escapeHtml(currentCartItems[index].name || `ამანათი ${index + 1}`);
+            return `
+                <div class="py-2.5 border-b border-brand-border/70 last:border-b-0 text-xs">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="min-w-0">
+                            <div class="text-gray-200 font-medium break-words">${name}</div>
+                            <div class="text-[10px] mt-0.5 ${parcel.usesVolumetricWeight ? 'text-blue-300' : 'text-gray-600'}">${parcel.usesVolumetricWeight ? 'მოცულობითი წონით' : 'ფიზიკური წონით'}</div>
+                        </div>
+                        <strong class="text-gray-200 whitespace-nowrap">$${shippingUSD.toFixed(2)}</strong>
+                    </div>
+                    <div class="flex justify-between gap-3 text-[10px] text-gray-500 mt-1">
+                        <span>${parcel.chargeableWeightKg.toFixed(2)} კგ × $${shippingRatePerKG.toFixed(2)}/კგ</span>
+                        <span>${shippingGEL.toFixed(2)} ₾</span>
+                    </div>
+                </div>
+            `;
+        }).join('')
+        : '';
 
-    // 7. RENDER
-    resultContainer.innerHTML = `
-        <div class="space-y-3 fade-in h-full flex flex-col">
-            <div class="flex justify-between items-center text-brand-text-muted text-sm">
-                <span>${calculationMode === 'cart' ? `ნივთების ღირებულება (${currentCartItems.reduce((sum, item) => sum + item.quantity, 0)} ცალი):` : 'ნივთის ღირებულება:'}</span>
-                <span class="text-white font-medium">${priceGEL.toFixed(2)} ₾</span>
-            </div>
-            
-            <div class="flex justify-between items-center text-brand-text-muted text-sm">
-                <span class="flex items-center gap-2">
-                    ტრანსპორტირება 
-                    ${isVolumetric ? '<span class="text-[10px] bg-blue-900 text-blue-200 px-1 rounded">მოცულობითი</span>' : ''}
-                    (${chargeableWeightKG.toFixed(2)} კგ):
-                </span>
-                <span class="text-white font-medium">${deliveryCostGEL.toFixed(2)} ₾</span>
+    const cartInvoiceHtml = calculationMode === 'cart' ? `
+        <div class="rounded-xl border border-brand-border overflow-hidden bg-brand-bg/25">
+            <div class="px-3 py-2.5 bg-white/[0.03] border-b border-brand-border flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-sm font-semibold text-white">კალათის ინვოისი</div>
+                    <div class="text-[10px] text-gray-500">${currentCartItems.length} ამანათი • კურსი ${exchangeRate.toFixed(4)}</div>
+                </div>
+                <span class="text-[10px] text-gray-500">USD → GEL</span>
             </div>
 
-            ${toggleVolumetric.checked ? `
+            <div class="px-3">
+                <div class="grid grid-cols-[minmax(0,1fr)_36px_66px_78px] gap-2 py-2 border-b border-brand-border text-[10px] uppercase tracking-wide text-gray-600">
+                    <span>აღწერა</span>
+                    <span class="text-center">რაოდ.</span>
+                    <span class="text-right">ერთ. ფასი</span>
+                    <span class="text-right">ჯამი</span>
+                </div>
+                ${cartInvoiceItemRows}
+            </div>
+
+            <div class="px-3 py-2 bg-white/[0.02] border-y border-brand-border">
+                <div class="text-[10px] uppercase tracking-wide text-gray-600">ტრანსპორტირება თითო ამანათზე</div>
+            </div>
+            <div class="px-3">${cartInvoiceShippingRows}</div>
+
+            <div class="px-3 py-3 space-y-2 bg-white/[0.02] border-t border-brand-border text-xs">
+                <div class="flex justify-between gap-3 text-gray-400">
+                    <span>საქონლის ქვეჯამი</span>
+                    <span class="text-right"><strong class="text-gray-200">$${priceUSD.toFixed(2)}</strong><span class="block text-[10px]">${priceGEL.toFixed(2)} ₾</span></span>
+                </div>
+                <div class="flex justify-between gap-3 text-gray-400">
+                    <span>ტრანსპორტირების ქვეჯამი</span>
+                    <span class="text-right"><strong class="text-gray-200">$${calculation.shippingCostUSD.toFixed(2)}</strong><span class="block text-[10px]">${deliveryCostGEL.toFixed(2)} ₾</span></span>
+                </div>
+                <div class="flex justify-between gap-3 pt-2 border-t border-brand-border text-gray-300">
+                    <span>სავარაუდო საბაჟო ღირებულება<br><span class="text-[10px] text-gray-600">საქონელი + ტრანსპორტირება</span></span>
+                    <strong class="text-white whitespace-nowrap">${taxableAmount.toFixed(2)} ₾</strong>
+                </div>
+                ${hasTax ? `
+                    <div class="flex justify-between gap-3 text-gray-400">
+                        <span>დღგ (${taxableAmount.toFixed(2)} ₾ × 18%)</span>
+                        <strong class="text-red-300 whitespace-nowrap">${vat.toFixed(2)} ₾</strong>
+                    </div>
+                    <div class="flex justify-between gap-3 text-gray-400"><span>საბაჟო მომსახურება</span><strong class="text-red-300 whitespace-nowrap">${treasury_fee.toFixed(2)} ₾</strong></div>
+                    <div class="flex justify-between gap-3 text-gray-400"><span>დეკლარაციის მომზადება</span><strong class="text-red-300 whitespace-nowrap">${declaration_preparation_fee.toFixed(2)} ₾</strong></div>
+                ` : `
+                    <div class="flex justify-between gap-3 text-brand-lime/80"><span>სავარაუდო გადასახადები</span><strong>0.00 ₾</strong></div>
+                `}
+            </div>
+
+            <div class="px-3 py-3.5 border-t border-brand-border bg-brand-lime/5 flex justify-between items-end gap-3">
+                <span class="text-sm font-bold text-white">საბოლოო ჯამი</span>
+                <strong class="text-2xl font-bold text-brand-lime tracking-tight whitespace-nowrap">${totalCostGEL.toFixed(2)} ₾</strong>
+            </div>
+        </div>
+
+        <div class="p-3 rounded-xl border border-amber-400/30 bg-amber-400/10 text-xs space-y-1.5">
+            <p class="font-semibold text-amber-300">როგორ არის დათვლილი საბოლოო ჯამი</p>
+            <p class="text-gray-300">ფასი დათვლილია იმ დაშვებით, რომ კალათაში დამატებული ამანათები ერთად ჩამოვა და ერთ გზავნილად გაფორმდება.</p>
+            <p class="text-gray-500">თუ გადამზიდი მათ ცალ-ცალკე გააფორმებს, თითოეული გზავნილი დამოუკიდებლად შეფასდება. 300 ₾-ის ზღვარს მიღწეულ თითოეულ გზავნილს შეიძლება ცალ-ცალკე დაერიცხოს საბაჟო მომსახურება და დეკლარაციის მომზადება. რეალური დაჯგუფების გარკვევის შემდეგ თითო გზავნილი ცალკე გამოთვალეთ.</p>
+        </div>
+        ${hasTax ? `<p class="text-xs text-red-300">${customsReasonText}</p>` : '<p class="text-xs text-brand-lime/70">*შეფასებით განბაჟების გარეშე</p>'}
+    ` : '';
+
+    const singleItemHtml = calculationMode === 'single' ? `
+        <div class="flex justify-between items-center text-brand-text-muted text-sm">
+            <span>ნივთის ღირებულება:</span>
+            <span class="text-white font-medium">${priceGEL.toFixed(2)} ₾</span>
+        </div>
+        <div class="flex justify-between items-center text-brand-text-muted text-sm">
+            <span class="flex items-center gap-2">
+                ტრანსპორტირება
+                ${isVolumetric ? '<span class="text-[10px] bg-blue-900 text-blue-200 px-1 rounded">მოცულობითი</span>' : ''}
+                (${chargeableWeightKG.toFixed(2)} კგ):
+            </span>
+            <span class="text-white font-medium">${deliveryCostGEL.toFixed(2)} ₾</span>
+        </div>
+        ${toggleVolumetric.checked ? `
             <div class="text-xs text-gray-500 flex justify-between gap-3">
                 <span>ფიზიკური: ${realWeightKG.toFixed(2)} კგ</span>
                 <span>მოცულობითი: ${volWeightKG.toFixed(2)} კგ</span>
             </div>
-            ` : ''}
-
-            ${cartThresholdStatus ? `
-            <div class="p-3 rounded-xl border ${cartThresholdStatus.reachesGoodsThreshold ? 'border-red-500/30 bg-red-500/10' : cartThresholdStatus.exceedsSafeLimit ? 'border-amber-400/30 bg-amber-400/10' : 'border-brand-lime/20 bg-brand-lime/5'} text-xs space-y-1">
-                <div class="flex justify-between gap-3"><span class="text-gray-400">ნივთების ჯამი 300 ₾ ზღვართან:</span><strong class="${cartThresholdStatus.reachesGoodsThreshold ? 'text-red-300' : cartThresholdStatus.exceedsSafeLimit ? 'text-amber-300' : 'text-brand-lime'}">${cartThresholdStatus.reachesGoodsThreshold ? (cartThresholdStatus.overageGEL > 0 ? `${cartThresholdStatus.overageGEL.toFixed(2)} ₾-ით მეტი` : 'ზღვარს მიაღწია') : `${cartThresholdStatus.remainingGEL.toFixed(2)} ₾ დარჩა`}</strong></div>
-                <p class="text-gray-500">უსაფრთხოების ბუფერი: ${cartThresholdStatus.safetyBufferGEL.toFixed(2)} ₾. ქვემოთ ნაჩვენები საბაჟო შეფასება ტრანსპორტირებასაც ითვალისწინებს.</p>
-            </div>
-            ` : ''}
-
-            ${hasTax ? `
-            <div class="p-3 bg-red-500/10 rounded-xl border border-red-500/20 space-y-2 mt-2 flex-grow">
+        ` : ''}
+        ${hasTax ? `
+            <div class="p-3 bg-red-500/10 rounded-xl border border-red-500/20 space-y-2 mt-2">
                 <p class="text-xs text-red-300 border-b border-red-500/20 pb-2">${customsReasonText}</p>
-                <div class="flex justify-between items-center text-gray-300 text-xs border-b border-red-500/20 pb-2">
-                    <span>დღგ (18%):</span>
-                    <span class="text-red-400 font-medium">${vat.toFixed(2)} ₾</span>
-                </div>
-                <div class="flex justify-between items-center text-gray-300 text-xs">
-                    <span>საბაჟო მომსახურების შეფასება:</span>
-                    <span class="text-red-400 font-medium">${treasury_fee.toFixed(2)} ₾</span>
-                </div>
-                <div class="flex justify-between items-center text-gray-300 text-xs">
-                    <span>დეკლარაციის მომზადების შეფასება:</span>
-                    <span class="text-red-400 font-medium">${declaration_preparation_fee.toFixed(2)} ₾</span>
-                </div>
+                <div class="flex justify-between items-center text-gray-300 text-xs border-b border-red-500/20 pb-2"><span>დღგ (18%):</span><span class="text-red-400 font-medium">${vat.toFixed(2)} ₾</span></div>
+                <div class="flex justify-between items-center text-gray-300 text-xs"><span>საბაჟო მომსახურების შეფასება:</span><span class="text-red-400 font-medium">${treasury_fee.toFixed(2)} ₾</span></div>
+                <div class="flex justify-between items-center text-gray-300 text-xs"><span>დეკლარაციის მომზადების შეფასება:</span><span class="text-red-400 font-medium">${declaration_preparation_fee.toFixed(2)} ₾</span></div>
             </div>
-            ` : `
-            <div class="text-xs text-brand-lime/70 text-right mt-1 mb-auto">
-                *შეფასებით: ღირებულება 300 ₾-ზე ნაკლებია და ფიზიკური წონა 30 კგ-ს არ აღემატება
-            </div>
-            `}
+        ` : '<div class="text-xs text-brand-lime/70 text-right">*შეფასებით: ღირებულება 300 ₾-ზე ნაკლებია და ფიზიკური წონა 30 კგ-ს არ აღემატება</div>'}
+        <div class="h-px bg-brand-border my-4"></div>
+        <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2"><span>სავარაუდო საბაჟო ღირებულება:</span><span>${taxableAmount.toFixed(2)} ₾</span></div>
+        <div class="flex justify-between items-center"><span class="text-lg font-bold text-white">სულ:</span><span class="text-3xl font-bold text-brand-lime tracking-tight">${totalCostGEL.toFixed(2)} ₾</span></div>
+    ` : '';
 
-            <div class="mt-auto">
-                <div class="h-px bg-brand-border my-4"></div>
-
+    // 7. RENDER
+    resultContainer.innerHTML = `
+        <div class="space-y-3 fade-in">
+            ${cartInvoiceHtml}
+            ${singleItemHtml}
+            <div>
                 ${comparisonPanel}
                 ${comparisonPanel ? '<div class="h-px bg-brand-border my-4"></div>' : ''}
-
-                <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2">
-                    <span>სავარაუდო საბაჟო ღირებულება:</span>
-                    <span>${taxableAmount.toFixed(2)} ₾</span>
-                </div>
-
-                <div class="flex justify-between items-center">
-                    <span class="text-lg font-bold text-white">სულ:</span>
-                    <span class="text-3xl font-bold text-brand-lime tracking-tight">
-                        ${totalCostGEL.toFixed(2)} ₾
-                    </span>
-                </div>
-                
                 <div class="text-xs text-center text-brand-text-muted mt-2 mb-4">
                     კურსი: ${exchangeRate.toFixed(4)} (${rateSourceText}) • ${forwarderDisplayName}: $${shippingRatePerKG.toFixed(2)}/kg
                     <div class="mt-1">
@@ -1326,7 +1526,7 @@ calculateButton.addEventListener('click', async () => {
         const title = titleInput.value.trim() || (calculationMode === 'cart' ? 'უსახელო კალათა' : 'უსახელო ნივთი');
 
         const savedData = {
-            schemaVersion: 3,
+            schemaVersion: 4,
             id: Date.now(),
             date: new Date().toLocaleString('ka-GE').split(',')[0],
             title: title,
@@ -1337,7 +1537,11 @@ calculateButton.addEventListener('click', async () => {
                     name: item.name,
                     url: item.url,
                     priceUSD: item.priceUSD,
-                    quantity: item.quantity
+                    quantity: item.quantity,
+                    weightInput: item.weightInput,
+                    weightUnit: item.weightUnit,
+                    useVolumetric: item.useVolumetric,
+                    dimensions: item.dimensions
                 }))
                 : [],
             priceUSD: priceUSD.toFixed(2),
@@ -1348,7 +1552,7 @@ calculateButton.addEventListener('click', async () => {
             total: totalCostGEL.toFixed(2),
             rate: exchangeRate.toFixed(4),
             deliveryGEL: deliveryCostGEL.toFixed(2),
-            taxTotal: hasTax ? (vat + treasury_fee + declaration_preparation_fee).toFixed(2) : "0.00",
+            taxTotal: hasTax ? (vat + calculation.serviceFeesGEL).toFixed(2) : "0.00",
             forwarderId: selectedForwarderId,
             forwarderName: forwarderDisplayName,
             shippingRatePerKG: shippingRatePerKG.toFixed(2),
@@ -1356,10 +1560,12 @@ calculateButton.addEventListener('click', async () => {
             cartSafetyBuffer: calculationMode === 'cart' ? safetyBuffer : null,
             inputSnapshot: {
                 priceUSD,
-                weightInput,
-                weightUnit,
-                useVolumetric: toggleVolumetric.checked,
-                dimensions,
+                ...(calculationMode === 'single' ? {
+                    weightInput,
+                    weightUnit,
+                    useVolumetric: toggleVolumetric.checked,
+                    dimensions
+                } : {}),
                 forwarderId: selectedForwarderId,
                 shippingRatePerKG,
                 customShippingRate: selectedForwarderId === 'custom' ? shippingRatePerKG : null
@@ -1389,10 +1595,10 @@ calculateButton.addEventListener('click', async () => {
 📦 ტრანსპორტირების კალკულატორი
 https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ------------------
-${calculationMode === 'cart' ? `კალათა: ${currentCartItems.length} პოზიცია, $${priceUSD.toFixed(2)}` : `ნივთი: $${priceUSD.toFixed(2)}`}
+${calculationMode === 'cart' ? `კალათა: ${currentCartItems.length} ამანათი, $${priceUSD.toFixed(2)}` : `ნივთი: $${priceUSD.toFixed(2)}`}
 წონა: ${chargeableWeightKG.toFixed(2)} kg (${forwarderDisplayName})
 ტრანსპორტირება: ${deliveryCostGEL.toFixed(2)} ₾
-${hasTax ? `სავარაუდო გადასახადები: ${(vat + treasury_fee + declaration_preparation_fee).toFixed(2)} ₾` : 'შეფასებით განბაჟების გარეშე'}
+${hasTax ? `სავარაუდო გადასახადები: ${(vat + calculation.serviceFeesGEL).toFixed(2)} ₾` : 'შეფასებით განბაჟების გარეშე'}
 ------------------
 სულ: ${totalCostGEL.toFixed(2)} ₾
         `.trim();
@@ -1428,30 +1634,40 @@ function restoreSavedCalculation(rawItem) {
     });
 
     if (isCart) {
-        cartItems = rawItem.items.map(item => createCartItem({
+        cartItems = rawItem.items.map((item, index) => createCartItem({
             name: typeof item?.name === 'string' ? item.name : '',
             url: typeof item?.url === 'string' ? item.url : '',
             priceUSD: finiteNumber(item?.priceUSD),
-            quantity: Math.max(1, Math.trunc(finiteNumber(item?.quantity, 1)))
+            quantity: Math.max(1, Math.trunc(finiteNumber(item?.quantity, 1))),
+            // Schema v3 carts had one shared weight. Put it on the first parcel so
+            // old saved calculations remain recoverable without multiplying it.
+            weightInput: finiteNumber(
+                item?.weightInput,
+                index === 0 ? finiteNumber(snapshot.weightInput, finiteNumber(rawItem.physicalWeight)) : 0
+            ) || '',
+            weightUnit: item?.weightUnit || (index === 0 ? snapshot.weightUnit : 'kilograms'),
+            useVolumetric: item?.useVolumetric === true || (
+                index === 0 && item?.useVolumetric === undefined && Boolean(snapshot.useVolumetric)
+            ),
+            dimensions: item?.dimensions || (index === 0 ? snapshot.dimensions : {})
         }));
         cartSafetyBufferInput.value = String(Math.max(0, finiteNumber(rawItem.cartSafetyBuffer, 10)));
         renderCartItems();
     } else {
         document.getElementById('price').value = String(finiteNumber(snapshot.priceUSD, finiteNumber(rawItem.priceUSD)));
+        const weightValue = finiteNumber(snapshot.weightInput, finiteNumber(rawItem.physicalWeight, finiteNumber(rawItem.weight)));
+        document.getElementById('weight').value = weightValue > 0 ? String(weightValue) : '';
+        document.getElementById('weightUnit').value = ['kilograms', 'pounds', 'ounces'].includes(snapshot.weightUnit)
+            ? snapshot.weightUnit
+            : 'kilograms';
+
+        const dimensions = snapshot.dimensions || {};
+        toggleVolumetric.checked = Boolean(snapshot.useVolumetric);
+        volumetricInputs.classList.toggle('hidden', !toggleVolumetric.checked);
+        document.getElementById('dimL').value = finiteNumber(dimensions.lengthCm) || '';
+        document.getElementById('dimW').value = finiteNumber(dimensions.widthCm) || '';
+        document.getElementById('dimH').value = finiteNumber(dimensions.heightCm) || '';
     }
-
-    const weightValue = finiteNumber(snapshot.weightInput, finiteNumber(rawItem.physicalWeight, finiteNumber(rawItem.weight)));
-    document.getElementById('weight').value = weightValue > 0 ? String(weightValue) : '';
-    document.getElementById('weightUnit').value = ['kilograms', 'pounds', 'ounces'].includes(snapshot.weightUnit)
-        ? snapshot.weightUnit
-        : 'kilograms';
-
-    const dimensions = snapshot.dimensions || {};
-    toggleVolumetric.checked = Boolean(snapshot.useVolumetric);
-    volumetricInputs.classList.toggle('hidden', !toggleVolumetric.checked);
-    document.getElementById('dimL').value = finiteNumber(dimensions.lengthCm) || '';
-    document.getElementById('dimW').value = finiteNumber(dimensions.widthCm) || '';
-    document.getElementById('dimH').value = finiteNumber(dimensions.heightCm) || '';
 
     let forwarderId = typeof snapshot.forwarderId === 'string'
         ? snapshot.forwarderId

@@ -122,7 +122,7 @@
               "name": "რა არის საბაჟო ლიმიტი საქართველოში?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. საბოლოო დარიცხვას და საქონლის კლასიფიკაციას განსაზღვრავს საქართველოს შემოსავლების სამსახური."
+                "text": "კალკულატორის კალათის შედეგი საორიენტაციოდ ითვლება იმ დაშვებით, რომ დამატებული ამანათები ერთად ჩამოვა და ერთ გზავნილად გაფორმდება. ცალ-ცალკე გაფორმებისას თითოეული გზავნილი დამოუკიდებლად ფასდება; საბოლოო დაჯგუფებას, დარიცხვას და საქონლის კლასიფიკაციას განსაზღვრავს საქართველოს შემოსავლების სამსახური და გადამზიდის ფაქტობრივი დეკლარირება."
               }
             },
             {
@@ -189,12 +189,12 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        <div class="grid grid-cols-1 lg:grid-cols-2 items-start gap-8 mb-12">
             
             <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl">
                 <div class="grid grid-cols-2 gap-1 p-1 mb-6 bg-brand-input border border-brand-border rounded-xl" role="group" aria-label="გამოთვლის რეჟიმი">
                     <button type="button" id="btnSingleMode" aria-pressed="true" class="px-3 py-2.5 rounded-lg text-sm font-semibold bg-brand-lime text-black transition-colors">
-                        ერთი ნივთი
+                        ერთეული
                     </button>
                     <button type="button" id="btnCartMode" aria-pressed="false" class="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white transition-colors">
                         კალათა
@@ -213,8 +213,8 @@
                 <div id="cartFields" class="hidden mb-5">
                     <div class="flex items-start justify-between gap-3 mb-3">
                         <div>
-                            <h2 class="text-sm font-semibold text-white">კალათის ნივთები</h2>
-                            <p class="text-xs text-gray-500 mt-1">ერთი კალათა წარმოადგენს ერთ დაგეგმილ გზავნილს.</p>
+                            <h2 class="text-sm font-semibold text-white">კალათის ამანათები</h2>
+                            <p class="text-xs text-gray-500 mt-1">თითოეულ ამანათს მიუთითეთ საკუთარი ფასი, წონა და, საჭიროებისას, ზომები. შედეგი ერთად ჩამოსვლის დაშვებით ითვლება.</p>
                         </div>
                         <button type="button" id="btnAddCartItem" class="shrink-0 text-xs px-3 py-2 rounded-lg bg-brand-lime/10 text-brand-lime border border-brand-lime/30 hover:bg-brand-lime hover:text-black transition-colors">
                             + დამატება
@@ -224,16 +224,19 @@
                     <div id="cartItemsList" class="space-y-3"></div>
 
                     <div id="cartThresholdPanel" class="mt-4 p-4 rounded-xl bg-brand-input border border-brand-border space-y-3" aria-live="polite">
-                        <div class="flex justify-between items-center gap-3 text-sm">
-                            <span class="text-brand-text-muted">ნივთების ჯამი:</span>
-                            <span class="text-white font-semibold"><span id="cartSubtotalUSD">$0.00</span> • <span id="cartSubtotalGEL">0.00 ₾</span></span>
+                        <div class="flex justify-between items-start gap-3 text-sm">
+                            <span class="text-brand-text-muted">საქონლის ჯამური ღირებულება<br><span class="text-[11px] text-gray-600">ტრანსპორტირების გარეშე</span></span>
+                            <span class="text-right">
+                                <span id="cartSubtotalUSD" class="block text-white font-semibold">$0.00</span>
+                                <span class="block text-[11px] text-gray-500">იგივე თანხა ლარში: <span id="cartSubtotalGEL">0.00 ₾</span></span>
+                            </span>
                         </div>
                         <div class="h-2.5 rounded-full bg-gray-800 overflow-hidden" aria-hidden="true">
                             <div id="cartThresholdBar" class="h-full w-0 bg-brand-lime transition-all duration-300"></div>
                         </div>
                         <p id="cartThresholdMessage" class="text-sm text-brand-lime">შეიყვანეთ ნივთების ფასები</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-400">
-                            <div class="flex justify-between gap-2"><span>დარჩენილი:</span><strong id="cartRemaining" class="text-gray-200">—</strong></div>
+                            <div class="flex justify-between gap-2"><span id="cartRemainingLabel">დარჩენილი:</span><strong id="cartRemaining" class="text-gray-200">—</strong></div>
                             <div class="flex justify-between gap-2"><span>უსაფრთხო დარჩენილი:</span><strong id="cartSafeRemaining" class="text-gray-200">—</strong></div>
                         </div>
                         <div class="flex items-center justify-between gap-3 pt-2 border-t border-brand-border">
@@ -244,7 +247,7 @@
                     </div>
                 </div>
 
-                <div class="mb-5">
+                <div id="sharedWeightFields" class="mb-5">
                     <label for="weight" id="weightLabel" class="block text-sm font-medium text-brand-text-muted mb-2">წონა</label>
                     <div class="flex gap-4 mb-3">
                         <input type="number" id="weight" placeholder="მაგ: 2.5" min="0.01" step="0.01" inputmode="decimal"
@@ -349,9 +352,9 @@
                 </button>
             </div>
 
-            <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl flex flex-col relative h-full">
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-6 md:p-8 shadow-xl flex flex-col relative self-start">
                 <h3 class="text-xl font-semibold text-white mb-6 border-b border-brand-border pb-4">დეტალური ხარჯები</h3>
-                <div id="result" aria-live="polite" aria-atomic="true" class="flex-grow flex flex-col justify-center">
+                <div id="result" aria-live="polite" aria-atomic="true">
                     <div class="text-center text-brand-text-muted py-10">
                         შეიყვანეთ მონაცემები
                     </div>
@@ -383,7 +386,7 @@
                             </span>
                     </summary>
                     <div class="mt-4 text-brand-text-muted text-base leading-relaxed">
-                        კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. გამოთვლა საორიენტაციოა — საბოლოო დარიცხვას, შეღავათს და საქონლის კლასიფიკაციას განსაზღვრავს
+                        კალათის შედეგი ითვლება იმ დაშვებით, რომ დამატებული ამანათები ერთად ჩამოვა და ერთ გზავნილად გაფორმდება. თუ გადამზიდი მათ ცალ-ცალკე გააფორმებს, თითოეული გზავნილი დამოუკიდებლად შეფასდება და ზღვარს მიღწეულ გზავნილებს მომსახურების საფასურები შეიძლება ცალ-ცალკე დაერიცხოს. გამოთვლა საორიენტაციოა — საბოლოო დაჯგუფებას, დარიცხვას, შეღავათს და საქონლის კლასიფიკაციას განსაზღვრავს
                         <a href="https://www.rs.ge/Parcelinfo" target="_blank" rel="noopener noreferrer" class="text-brand-lime hover:underline">საქართველოს შემოსავლების სამსახური</a>.
                     </div>
                 </details>

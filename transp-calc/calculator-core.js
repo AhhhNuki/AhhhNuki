@@ -69,6 +69,79 @@
         return items.reduce((total, item) => total + (item.priceUSD * item.quantity), 0);
     }
 
+    function validateCartParcels(items) {
+        const itemValidation = validateCartItems(items);
+        const errors = [...itemValidation.errors];
+
+        if (!Array.isArray(items)) {
+            return { valid: false, errors };
+        }
+
+        items.forEach((item, index) => {
+            if (!isPositiveFinite(item.weightInput)) {
+                errors.push({
+                    field: 'cartWeight',
+                    index,
+                    message: `${index + 1}-ე ამანათის ფიზიკური წონა უნდა იყოს 0-ზე მეტი.`
+                });
+            }
+
+            if (item.useVolumetric) {
+                const dimensions = item.dimensions || {};
+                if (
+                    !isPositiveFinite(dimensions.lengthCm) ||
+                    !isPositiveFinite(dimensions.widthCm) ||
+                    !isPositiveFinite(dimensions.heightCm)
+                ) {
+                    errors.push({
+                        field: 'cartDimensions',
+                        index,
+                        message: `${index + 1}-ე ამანათის მოცულობითი წონისთვის სამივე ზომა უნდა იყოს 0-ზე მეტი.`
+                    });
+                }
+            }
+        });
+
+        return { valid: errors.length === 0, errors };
+    }
+
+    function calculateCartParcelWeights(items) {
+        const validation = validateCartParcels(items);
+        if (!validation.valid) {
+            const error = new Error(validation.errors[0].message);
+            error.validationErrors = validation.errors;
+            throw error;
+        }
+
+        const parcels = items.map(item => {
+            const physicalWeightKg = convertWeightToKg(item.weightInput, item.weightUnit);
+            const dimensions = item.dimensions || {};
+            const volumetricWeightKg = item.useVolumetric
+                ? calculateVolumetricWeightKg(
+                    dimensions.lengthCm,
+                    dimensions.widthCm,
+                    dimensions.heightCm
+                )
+                : 0;
+            const chargeableWeightKg = Math.max(physicalWeightKg, volumetricWeightKg);
+
+            return {
+                physicalWeightKg,
+                volumetricWeightKg,
+                chargeableWeightKg,
+                usesVolumetricWeight: item.useVolumetric && volumetricWeightKg > physicalWeightKg
+            };
+        });
+
+        return {
+            parcels,
+            physicalWeightKg: parcels.reduce((total, parcel) => total + parcel.physicalWeightKg, 0),
+            volumetricWeightKg: parcels.reduce((total, parcel) => total + parcel.volumetricWeightKg, 0),
+            chargeableWeightKg: parcels.reduce((total, parcel) => total + parcel.chargeableWeightKg, 0),
+            usesVolumetricWeight: parcels.some(parcel => parcel.usesVolumetricWeight)
+        };
+    }
+
     function calculateCartThresholdStatus(items, exchangeRate, safetyBufferGEL = 10) {
         if (!isPositiveFinite(exchangeRate)) {
             throw new Error('USD/GEL კურსი უნდა იყოს 0-ზე მეტი.');
@@ -82,7 +155,6 @@
         const remainingGEL = CUSTOMS_VALUE_THRESHOLD_GEL - goodsSubtotalGEL;
         const safeLimitGEL = Math.max(0, CUSTOMS_VALUE_THRESHOLD_GEL - safetyBufferGEL);
         const safeRemainingGEL = safeLimitGEL - goodsSubtotalGEL;
-        const usedPercent = Math.max(0, (goodsSubtotalGEL / CUSTOMS_VALUE_THRESHOLD_GEL) * 100);
 
         return {
             subtotalUSD,
@@ -95,7 +167,7 @@
             safeLimitGEL,
             safeRemainingGEL,
             safeRemainingUSD: safeRemainingGEL / exchangeRate,
-            usedPercent,
+            usedPercent: Math.max(0, (goodsSubtotalGEL / CUSTOMS_VALUE_THRESHOLD_GEL) * 100),
             reachesGoodsThreshold: goodsSubtotalGEL >= CUSTOMS_VALUE_THRESHOLD_GEL,
             exceedsSafeLimit: goodsSubtotalGEL >= safeLimitGEL
         };
@@ -198,6 +270,51 @@
         };
     }
 
+    function calculateCartCosts(input) {
+        if (!isPositiveFinite(input.shippingRatePerKG)) {
+            throw new Error('ტრანსპორტირების ტარიფი უნდა იყოს 0-ზე მეტი.');
+        }
+        if (!isPositiveFinite(input.exchangeRate)) {
+            throw new Error('USD/GEL კურსი უნდა იყოს 0-ზე მეტი.');
+        }
+
+        const priceUSD = calculateCartSubtotalUSD(input.items);
+        const weights = calculateCartParcelWeights(input.items);
+        const itemCostGEL = priceUSD * input.exchangeRate;
+        const shippingCostUSD = weights.chargeableWeightKg * input.shippingRatePerKG;
+        const shippingCostGEL = shippingCostUSD * input.exchangeRate;
+        const estimatedCustomsValueGEL = itemCostGEL + shippingCostGEL;
+        const reachesValueThreshold = estimatedCustomsValueGEL >= CUSTOMS_VALUE_THRESHOLD_GEL;
+        const exceedsWeightLimit = weights.physicalWeightKg > CUSTOMS_WEIGHT_LIMIT_KG;
+        const hasTax = reachesValueThreshold || exceedsWeightLimit;
+        const vatGEL = hasTax ? estimatedCustomsValueGEL * VAT_RATE : 0;
+        const treasuryFeeGEL = hasTax ? TREASURY_FEE_GEL : 0;
+        const declarationPreparationFeeGEL = hasTax ? DECLARATION_PREPARATION_FEE_GEL : 0;
+        const serviceFeesGEL = treasuryFeeGEL + declarationPreparationFeeGEL;
+        const totalCostGEL = estimatedCustomsValueGEL + vatGEL + serviceFeesGEL;
+        const taxReasons = [];
+        if (reachesValueThreshold) taxReasons.push('estimated-value');
+        if (exceedsWeightLimit) taxReasons.push('physical-weight');
+
+        return {
+            ...weights,
+            priceUSD,
+            itemCostGEL,
+            shippingCostUSD,
+            shippingCostGEL,
+            estimatedCustomsValueGEL,
+            reachesValueThreshold,
+            exceedsWeightLimit,
+            hasTax,
+            taxReasons,
+            vatGEL,
+            treasuryFeeGEL,
+            declarationPreparationFeeGEL,
+            serviceFeesGEL,
+            totalCostGEL
+        };
+    }
+
     return {
         CUSTOMS_VALUE_THRESHOLD_GEL,
         CUSTOMS_WEIGHT_LIMIT_KG,
@@ -208,8 +325,11 @@
         calculateVolumetricWeightKg,
         validateCartItems,
         calculateCartSubtotalUSD,
+        validateCartParcels,
+        calculateCartParcelWeights,
         calculateCartThresholdStatus,
         validateCalculationInputs,
-        calculateCosts
+        calculateCosts,
+        calculateCartCosts
     };
 });

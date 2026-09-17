@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'calc-app-';
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const CACHE_NAME = `${CACHE_PREFIX}v7`;
 const STATIC_ASSETS = [
     './',
     './index.html',
