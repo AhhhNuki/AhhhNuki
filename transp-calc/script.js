@@ -130,7 +130,6 @@ const customShippingInputWrapper = document.getElementById('customShippingInputW
 const forwarderRateInfo = document.getElementById('forwarderRateInfo');
 const rateBadgeContainer = document.getElementById('rateBadgeContainer');
 const btnViewSelectedHistory = document.getElementById('btnViewSelectedHistory');
-const btnOpenPriceTracker = document.getElementById('btnOpenPriceTracker');
 const priceTrackerModal = document.getElementById('priceTrackerModal');
 const btnCloseTrackerModal = document.getElementById('btnCloseTrackerModal');
 const btnCloseTrackerModalBtn = document.getElementById('btnCloseTrackerModalBtn');
@@ -141,6 +140,7 @@ const btnAlertOpenTracker = document.getElementById('btnAlertOpenTracker');
 const btnDismissAlert = document.getElementById('btnDismissAlert');
 const exchangeRateStatus = document.getElementById('exchangeRateStatus');
 const calculateButton = document.getElementById('calculate');
+const btnResetCalculation = document.getElementById('btnResetCalculation');
 const btnSingleMode = document.getElementById('btnSingleMode');
 const btnCartMode = document.getElementById('btnCartMode');
 const singleItemFields = document.getElementById('singleItemFields');
@@ -471,7 +471,10 @@ function setCalculationMode(mode, options = {}) {
     }
     if (isCart) updateCartThresholdPreview();
 
-    if (!options.preserveRecalculation) recalculationSource = null;
+    if (!options.preserveRecalculation) {
+        recalculationSource = null;
+        btnResetCalculation?.classList.add('hidden');
+    }
     if (!options.preserveResult) {
         const result = document.getElementById('result');
         result.innerHTML = '<div class="text-center text-brand-text-muted py-10">შეიყვანეთ მონაცემები</div>';
@@ -480,6 +483,32 @@ function setCalculationMode(mode, options = {}) {
 
 btnSingleMode.addEventListener('click', () => setCalculationMode('single'));
 btnCartMode.addEventListener('click', () => setCalculationMode('cart'));
+
+function resetCalculationForm() {
+    recalculationSource = null;
+    cartItems = [createCartItem()];
+    renderCartItems();
+
+    document.getElementById('price').value = '';
+    document.getElementById('weight').value = '';
+    document.getElementById('weightUnit').value = 'kilograms';
+    toggleVolumetric.checked = false;
+    volumetricInputs.classList.add('hidden');
+    document.getElementById('dimL').value = '';
+    document.getElementById('dimW').value = '';
+    document.getElementById('dimH').value = '';
+    document.getElementById('customRate').value = '';
+
+    const savedSafetyBuffer = parseFloat(localStorage.getItem('calc_cart_safety_buffer'));
+    cartSafetyBufferInput.value = String(Number.isFinite(savedSafetyBuffer) && savedSafetyBuffer >= 0 ? savedSafetyBuffer : 10);
+    resetCartThresholdPreview();
+    setCalculationMode('single');
+    fetchExchangeRate(NaN);
+    document.querySelector('main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('price').focus();
+}
+
+btnResetCalculation?.addEventListener('click', resetCalculationForm);
 btnAddCartItem.addEventListener('click', () => {
     const newItem = createCartItem();
     cartItems.push(newItem);
@@ -1025,9 +1054,6 @@ function closeTrackerModal() {
 }
 
 // Modal event listeners
-if (btnOpenPriceTracker) {
-    btnOpenPriceTracker.addEventListener('click', () => openTrackerModal());
-}
 if (btnViewSelectedHistory) {
     btnViewSelectedHistory.addEventListener('click', () => openTrackerModal(forwarderSelect.value));
 }
@@ -1166,12 +1192,9 @@ function renderRecalculationComparison(current) {
 
     return `
         <div class="rounded-xl border border-blue-400/20 bg-blue-500/10 p-3 space-y-2">
-            <div class="flex items-center justify-between gap-3">
-                <strong class="text-sm text-blue-200">შენახული vs განახლებული</strong>
-                <span class="text-[11px] text-blue-300/70">ძველი ჩანაწერი უცვლელი რჩება</span>
-            </div>
+            <strong class="text-sm text-blue-200">ცვლილებების შედარება</strong>
             <div class="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-3 gap-y-2 text-[11px] items-center overflow-x-auto">
-                <span class="text-gray-500">მაჩვენებელი</span><span class="text-gray-500 text-right">ძველი</span><span class="text-gray-500 text-right">ახლა</span><span class="text-gray-500 text-right">სხვაობა</span>
+                <span class="text-gray-500">მაჩვენებელი</span><span class="text-gray-500 text-right">მანამდე</span><span class="text-gray-500 text-right">ახლა</span><span class="text-gray-500 text-right">სხვაობა</span>
                 ${rows.map(row => `<span class="text-gray-300">${row[0]}</span><span class="text-gray-400 text-right whitespace-nowrap">${row[1]}</span><span class="text-white text-right whitespace-nowrap">${row[2]}</span><span class="${row[3].startsWith('+') ? 'text-red-300' : row[3].startsWith('−') ? 'text-brand-lime' : 'text-gray-400'} text-right whitespace-nowrap">${row[3]}</span>`).join('')}
             </div>
         </div>
@@ -1526,7 +1549,7 @@ calculateButton.addEventListener('click', async () => {
         const title = titleInput.value.trim() || (calculationMode === 'cart' ? 'უსახელო კალათა' : 'უსახელო ნივთი');
 
         const savedData = {
-            schemaVersion: 4,
+            schemaVersion: 5,
             id: Date.now(),
             date: new Date().toLocaleString('ka-GE').split(',')[0],
             title: title,
@@ -1558,6 +1581,59 @@ calculateButton.addEventListener('click', async () => {
             shippingRatePerKG: shippingRatePerKG.toFixed(2),
             sourceCalculationId: recalculationSource?.id || null,
             cartSafetyBuffer: calculationMode === 'cart' ? safetyBuffer : null,
+            invoiceSnapshot: {
+                version: 1,
+                calculationType: calculationMode,
+                items: calculationMode === 'cart'
+                    ? currentCartItems.map((item, index) => ({
+                        name: item.name || `ამანათი ${index + 1}`,
+                        quantity: item.quantity,
+                        unitPriceUSD: item.priceUSD,
+                        lineTotalUSD: item.priceUSD * item.quantity,
+                        lineTotalGEL: item.priceUSD * item.quantity * exchangeRate
+                    }))
+                    : [{
+                        name: title,
+                        quantity: 1,
+                        unitPriceUSD: priceUSD,
+                        lineTotalUSD: priceUSD,
+                        lineTotalGEL: priceGEL
+                    }],
+                shippingRows: calculationMode === 'cart'
+                    ? calculation.parcels.map((parcel, index) => ({
+                        name: currentCartItems[index].name || `ამანათი ${index + 1}`,
+                        physicalWeightKg: parcel.physicalWeightKg,
+                        volumetricWeightKg: parcel.volumetricWeightKg,
+                        chargeableWeightKg: parcel.chargeableWeightKg,
+                        usesVolumetricWeight: parcel.usesVolumetricWeight,
+                        shippingCostUSD: parcel.chargeableWeightKg * shippingRatePerKG,
+                        shippingCostGEL: parcel.chargeableWeightKg * shippingRatePerKG * exchangeRate
+                    }))
+                    : [{
+                        name: title,
+                        physicalWeightKg: realWeightKG,
+                        volumetricWeightKg: volWeightKG,
+                        chargeableWeightKg: chargeableWeightKG,
+                        usesVolumetricWeight: isVolumetric,
+                        shippingCostUSD: calculation.shippingCostUSD,
+                        shippingCostGEL: deliveryCostGEL
+                    }],
+                exchangeRate,
+                exchangeRateSource: rateSourceText,
+                forwarderName: forwarderDisplayName,
+                shippingRatePerKG,
+                priceUSD,
+                itemCostGEL: priceGEL,
+                shippingCostUSD: calculation.shippingCostUSD,
+                shippingCostGEL: deliveryCostGEL,
+                estimatedCustomsValueGEL: taxableAmount,
+                hasTax,
+                vatGEL: vat,
+                treasuryFeeGEL: treasury_fee,
+                declarationPreparationFeeGEL: declaration_preparation_fee,
+                serviceFeesGEL: calculation.serviceFeesGEL,
+                totalCostGEL
+            },
             inputSnapshot: {
                 priceUSD,
                 ...(calculationMode === 'single' ? {
@@ -1689,11 +1765,11 @@ function restoreSavedCalculation(rawItem) {
     document.getElementById('customRate').value = '';
     const resultContainer = document.getElementById('result');
     resultContainer.innerHTML = `
-        <div class="text-center py-8 space-y-3">
-            <div class="text-blue-300 font-semibold">შენახული მონაცემები აღდგენილია</div>
-            <p class="text-sm text-brand-text-muted">${isCart ? 'შეამოწმეთ კალათის მიმდინარე ფასები' : 'განაახლეთ ნივთის მიმდინარე ფასი'}, შემდეგ დააჭირეთ „გამოთვლას“. გამოყენებული იქნება მიმდინარე კურსი და გადამზიდის მიმდინარე ტარიფი.</p>
+        <div class="text-center py-8">
+            <p class="text-sm text-brand-text-muted">${isCart ? 'შეამოწმეთ კალათის ფასები' : 'შეამოწმეთ ნივთის ფასი'}, შემდეგ დააჭირეთ „გამოთვლას“.</p>
         </div>
     `;
+    btnResetCalculation?.classList.remove('hidden');
     document.querySelector('main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => {
         if (isCart) cartItemsList.querySelector('[data-cart-price]')?.focus();
