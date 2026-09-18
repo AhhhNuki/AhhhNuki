@@ -91,6 +91,77 @@ const DEFAULT_FORWARDERS = [
     }
 ];
 
+// Resilience copy for first-load offline/file:// use and for clients that still
+// receive an older cached forwarders.json. data/forwarders.json remains the
+// canonical, source-linked policy when it is available.
+const FALLBACK_FORWARDER_FEE_POLICIES = {
+    usa2georgia: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://www.usa2georgia.com/agreements/ka.html',
+        declarationPreparation: { status: 'verified', appliesWhen: 'customs-clearance', amountGEL: 16 },
+        operationalHandling: {
+            status: 'verified',
+            appliesWhen: 'always',
+            basis: 'declaredGoodsValueGEL',
+            tiers: [
+                { upToGEL: 100, flatGEL: 1 },
+                { upToGEL: 200, flatGEL: 2 },
+                { upToGEL: 300, flatGEL: 3 },
+                { upToGEL: 3000, rate: 0.02 },
+                { upToGEL: 10000, rate: 0.04 },
+                { upToGEL: 20000, rate: 0.08 },
+                { upToGEL: null, rate: 0.12 }
+            ]
+        }
+    },
+    camex: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://camex.ge/files/camex_agreement_ge.pdf',
+        declarationPreparation: { status: 'verified', appliesWhen: 'customs-clearance', amountGEL: 10 },
+        operationalHandling: { status: 'none' }
+    },
+    inex: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://old.legacy.inex.ge/ka/custom-procedures',
+        declarationPreparation: {
+            status: 'verified',
+            appliesWhen: 'customs-clearance',
+            amountGEL: 10,
+            note: 'ონლაინ ამანათი; პერსონალური ამანათის საფასურია 15 ლარი'
+        },
+        operationalHandling: { status: 'none' }
+    },
+    maleo: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://maleo.ge/?attr=distdecl&language=ge&module=html',
+        declarationPreparation: { status: 'verified', appliesWhen: 'customs-clearance', amountGEL: 10 },
+        operationalHandling: { status: 'none' }
+    },
+    spacecargo: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://www.spacecargo.ge/AboutUs',
+        declarationPreparation: { status: 'unverified' },
+        operationalHandling: { status: 'unverified' }
+    },
+    kiwipost: {
+        verifiedAt: '2026-09-18',
+        sourceUrl: 'https://kiwipost.ge/docs/terms_GE.pdf',
+        declarationPreparation: { status: 'verified', appliesWhen: 'customs-clearance', amountGEL: 10 },
+        operationalHandling: { status: 'none' }
+    }
+};
+
+function withFeePolicy(forwarder) {
+    return {
+        ...forwarder,
+        fees: forwarder.fees || FALLBACK_FORWARDER_FEE_POLICIES[forwarder.id] || null
+    };
+}
+
+DEFAULT_FORWARDERS.forEach(forwarder => {
+    forwarder.fees = FALLBACK_FORWARDER_FEE_POLICIES[forwarder.id] || null;
+});
+
 let forwardersList = [...DEFAULT_FORWARDERS];
 let customsRules = CalculatorCore.DEFAULT_CUSTOMS_RULES;
 
@@ -120,7 +191,9 @@ async function loadForwardersData() {
                 forwarder.currentRate > 0
             ));
             if (isValid) {
-                forwardersList = data;
+                // Preserve verified fees if an older service-worker cache returns
+                // rate data that predates the fee-policy fields.
+                forwardersList = data.map(withFeePolicy);
             } else {
                 console.warn('data/forwarders.json has an unexpected structure; using bundled rates.');
             }
