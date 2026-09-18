@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'calc-app-';
-const CACHE_NAME = `${CACHE_PREFIX}v9`;
+const CACHE_NAME = `${CACHE_PREFIX}v10`;
 const STATIC_ASSETS = [
     './',
     './index.html',
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
     './list.js',
     './manifest.json',
     './data/forwarders.json',
+    './data/customs-rules.json',
     './assets/icon-192.png',
     './assets/icon-512.png',
     './assets/favicon.ico',
@@ -64,7 +65,7 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    if (isSameOrigin && url.pathname.endsWith('/data/forwarders.json')) {
+    if (isSameOrigin && (url.pathname.endsWith('/data/forwarders.json') || url.pathname.endsWith('/data/customs-rules.json'))) {
         event.respondWith(networkFirst(request));
         return;
     }

@@ -92,6 +92,19 @@ const DEFAULT_FORWARDERS = [
 ];
 
 let forwardersList = [...DEFAULT_FORWARDERS];
+let customsRules = CalculatorCore.DEFAULT_CUSTOMS_RULES;
+
+async function loadCustomsRules() {
+    try {
+        const response = await fetch('./data/customs-rules.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        customsRules = CalculatorCore.normalizeCustomsRules(data);
+    } catch (error) {
+        console.warn('Could not load data/customs-rules.json; using bundled customs rules.', error);
+        customsRules = CalculatorCore.DEFAULT_CUSTOMS_RULES;
+    }
+}
 
 // Load fresh data from JSON file (with fallback)
 async function loadForwardersData() {
@@ -139,6 +152,9 @@ const rateAlertText = document.getElementById('rateAlertText');
 const btnAlertOpenTracker = document.getElementById('btnAlertOpenTracker');
 const btnDismissAlert = document.getElementById('btnDismissAlert');
 const exchangeRateStatus = document.getElementById('exchangeRateStatus');
+const forwarderFeePolicyInfo = document.getElementById('forwarderFeePolicyInfo');
+const insuranceInput = document.getElementById('insuranceCost');
+const importDutyRateInput = document.getElementById('importDutyRate');
 const calculateButton = document.getElementById('calculate');
 const btnResetCalculation = document.getElementById('btnResetCalculation');
 const btnSingleMode = document.getElementById('btnSingleMode');
@@ -399,14 +415,18 @@ function applyThresholdPresentation(status) {
     bar.classList.remove('bg-brand-lime', 'bg-amber-400', 'bg-red-500');
     message.classList.remove('text-brand-lime', 'text-amber-400', 'text-red-400');
 
-    if (status.reachesGoodsThreshold) {
+    if (status.exceedsGoodsThreshold) {
         bar.classList.add('bg-red-500');
         message.classList.add('text-red-400');
-        message.textContent = status.overageGEL > 0
-            ? `300 ₾-ის ზღვარი გადაცილებულია ${status.overageGEL.toFixed(2)} ₾-ით`
-            : 'საქონლის ჯამი 300 ₾-ის ზღვარს აღწევს';
+        message.textContent = `300 ₾-ის ზღვარი გადაცილებულია ${status.overageGEL.toFixed(2)} ₾-ით`;
         remainingLabel.textContent = 'ზღვარს გადაცილებული:';
         remaining.textContent = `${status.overageGEL.toFixed(2)} ₾ • $${status.overageUSD.toFixed(2)}`;
+    } else if (status.atGoodsThreshold) {
+        bar.classList.add('bg-amber-400');
+        message.classList.add('text-amber-400');
+        message.textContent = 'საქონლის ჯამი ზუსტად 300 ₾-ია — ზღვარი არ არის გადაცილებული';
+        remainingLabel.textContent = 'დარჩენილი:';
+        remaining.textContent = '0.00 ₾';
     } else if (status.exceedsSafeLimit) {
         bar.classList.add('bg-amber-400');
         message.classList.add('text-amber-400');
@@ -498,6 +518,8 @@ function resetCalculationForm() {
     document.getElementById('dimW').value = '';
     document.getElementById('dimH').value = '';
     document.getElementById('customRate').value = '';
+    insuranceInput.value = '0';
+    importDutyRateInput.value = '0';
 
     const savedSafetyBuffer = parseFloat(localStorage.getItem('calc_cart_safety_buffer'));
     cartSafetyBufferInput.value = String(Number.isFinite(savedSafetyBuffer) && savedSafetyBuffer >= 0 ? savedSafetyBuffer : 10);
@@ -835,6 +857,54 @@ function populateForwardersSelect(selectedId) {
 
     renderCustomDropdown(resolvedSelectedId);
     updateForwarderRateStatusPill(forwarderSelect.value);
+    renderForwarderFeePolicy(forwarderSelect.value);
+}
+
+function renderForwarderFeePolicy(forwarderId) {
+    if (!forwarderFeePolicyInfo) return;
+    forwarderFeePolicyInfo.replaceChildren();
+
+    if (forwarderId === 'custom') {
+        forwarderFeePolicyInfo.textContent = 'ინდივიდუალური გადამზიდის დამატებითი საფასურები ჯამში არ შედის.';
+        forwarderFeePolicyInfo.className = 'mt-2 text-[11px] leading-relaxed text-amber-400/80';
+        return;
+    }
+
+    const forwarder = forwardersList.find(item => item.id === forwarderId);
+    const fees = forwarder?.fees;
+    if (!fees) {
+        forwarderFeePolicyInfo.textContent = 'გადამზიდის დამატებითი საფასურები ვერ დადასტურდა და ჯამში არ შედის.';
+        forwarderFeePolicyInfo.className = 'mt-2 text-[11px] leading-relaxed text-amber-400/80';
+        return;
+    }
+
+    const parts = [];
+    if (fees.declarationPreparation?.status === 'verified') {
+        parts.push(`საბაჟო დოკუმენტი: ${Number(fees.declarationPreparation.amountGEL).toFixed(0)} ₾`);
+    } else {
+        parts.push('საბაჟო დოკუმენტი: დაუდასტურებელი');
+    }
+    if (fees.operationalHandling?.status === 'verified') {
+        parts.push('ოპერაციული დამუშავება: ღირებულების მიხედვით');
+    } else if (fees.operationalHandling?.status === 'none') {
+        parts.push('ცალკე ოპერაციული საფასური: 0 ₾');
+    } else {
+        parts.push('სხვა ოპერაციული საფასური საჯარო წყაროში არ არის მითითებული');
+    }
+
+    const text = document.createElement('span');
+    text.textContent = parts.join(' • ');
+    forwarderFeePolicyInfo.appendChild(text);
+    if (fees.sourceUrl) {
+        const link = document.createElement('a');
+        link.href = fees.sourceUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'ml-1 text-brand-lime hover:underline';
+        link.textContent = 'წყარო';
+        forwarderFeePolicyInfo.appendChild(link);
+    }
+    forwarderFeePolicyInfo.className = 'mt-2 text-[11px] leading-relaxed text-gray-500';
 }
 
 function updateForwarderRateStatusPill(forwarderId) {
@@ -1231,10 +1301,11 @@ calculateButton.addEventListener('click', async () => {
     const customRateRaw = customRateInput.value.trim();
     const customRate = customRateRaw ? parseFloat(customRateRaw) : NaN;
     const weightUnit = document.getElementById('weightUnit').value;
+    const insuranceUSD = parseFloat(insuranceInput.value || '0');
+    const importDutyPercent = parseFloat(importDutyRateInput.value || '0');
+    const importDutyRate = importDutyPercent / 100;
 
     const resultContainer = document.getElementById('result');
-    const declaration_preparation_fee = CalculatorCore.DECLARATION_PREPARATION_FEE_GEL;
-    const treasury_fee = CalculatorCore.TREASURY_FEE_GEL;
 
     // Validation
     if (calculationMode === 'single' && (!Number.isFinite(priceUSD) || priceUSD < 0)) {
@@ -1249,6 +1320,14 @@ calculateButton.addEventListener('click', async () => {
         showCalculationError('USD/GEL კურსი უნდა იყოს 0-ზე მეტი.', 'customRate');
         return;
     }
+    if (!Number.isFinite(insuranceUSD) || insuranceUSD < 0) {
+        showCalculationError('დაზღვევის ღირებულება უნდა იყოს 0 ან მეტი.', 'insuranceCost');
+        return;
+    }
+    if (!Number.isFinite(importDutyPercent) || importDutyPercent < 0 || importDutyPercent > 100) {
+        showCalculationError('იმპორტის ტარიფი უნდა იყოს 0%-დან 100%-მდე.', 'importDutyRate');
+        return;
+    }
 
     const dimensions = {
         lengthCm: parseFloat(document.getElementById('dimL').value),
@@ -1259,6 +1338,7 @@ calculateButton.addEventListener('click', async () => {
     // 4. Shipping Rate Logic
     const selectedForwarderId = forwarderSelect.value;
     const forwarderObj = forwardersList.find(f => f.id === selectedForwarderId);
+    const forwarderFeePolicy = forwarderObj?.fees || null;
     let shippingRatePerKG = 0;
     let forwarderDisplayName = 'გადამზიდი';
 
@@ -1297,7 +1377,11 @@ calculateButton.addEventListener('click', async () => {
         calculation = CalculatorCore.calculateCartCosts({
             items: currentCartItems,
             shippingRatePerKG,
-            exchangeRate
+            exchangeRate,
+            insuranceUSD,
+            importDutyRate,
+            customsRules,
+            forwarderFeePolicy
         });
     } else {
         const calculationInput = {
@@ -1306,6 +1390,10 @@ calculateButton.addEventListener('click', async () => {
             weightUnit,
             shippingRatePerKG,
             exchangeRate,
+            insuranceUSD,
+            importDutyRate,
+            customsRules,
+            forwarderFeePolicy,
             useVolumetric: toggleVolumetric.checked,
             dimensions
         };
@@ -1317,6 +1405,8 @@ calculateButton.addEventListener('click', async () => {
                 weight: 'weight',
                 shippingRate: selectedForwarderId === 'custom' ? 'customShippingRate' : null,
                 exchangeRate: 'customRate',
+                insurance: 'insuranceCost',
+                importDutyRate: 'importDutyRate',
                 dimensions: 'dimL'
             };
             showCalculationError(firstError.message, fieldMap[firstError.field]);
@@ -1334,10 +1424,15 @@ calculateButton.addEventListener('click', async () => {
     const taxableAmount = calculation.estimatedCustomsValueGEL;
     const vat = calculation.vatGEL;
     const hasTax = calculation.hasTax;
+    const treasury_fee = calculation.treasuryFeeGEL;
+    const declaration_preparation_fee = calculation.declarationPreparationFeeGEL;
+    const operational_handling_fee = calculation.operationalHandlingFeeGEL;
+    const import_duty = calculation.importDutyGEL;
+    const insuranceCostGEL = calculation.insuranceCostGEL;
     const customsReasonText = calculation.taxReasons.map(reason => (
         reason === 'physical-weight'
             ? 'ფიზიკური წონა 30 კგ-ს აღემატება'
-            : 'სავარაუდო საბაჟო ღირებულება 300 ₾-ს აღწევს'
+            : 'სავარაუდო საბაჟო ღირებულება 300 ₾-ს აღემატება'
     )).join(' • ');
     const rateSourceText = exchangeRateInfo?.source === 'manual'
         ? 'ხელით მითითებული'
@@ -1397,6 +1492,34 @@ calculateButton.addEventListener('click', async () => {
         }).join('')
         : '';
 
+    const customsComponentsText = insuranceCostGEL > 0
+        ? 'საქონელი + ტრანსპორტირება + დაზღვევა'
+        : 'საქონელი + ტრანსპორტირება';
+    const insuranceRowHtml = insuranceCostGEL > 0 ? `
+        <div class="flex justify-between gap-3 text-gray-400">
+            <span>დაზღვევა</span>
+            <span class="text-right"><strong class="text-gray-200">$${insuranceUSD.toFixed(2)}</strong><span class="block text-[10px]">${insuranceCostGEL.toFixed(2)} ₾</span></span>
+        </div>
+    ` : '';
+    const importDutyRowHtml = import_duty > 0 ? `
+        <div class="flex justify-between gap-3 text-gray-400"><span>იმპორტის გადასახადი (${importDutyPercent.toFixed(2)}%)</span><strong class="text-red-300 whitespace-nowrap">${import_duty.toFixed(2)} ₾</strong></div>
+    ` : '';
+    const treasuryRowHtml = treasury_fee > 0 ? `
+        <div class="flex justify-between gap-3 text-gray-400"><span>RS საბაჟო მომსახურება</span><strong class="text-red-300 whitespace-nowrap">${treasury_fee.toFixed(2)} ₾</strong></div>
+    ` : '';
+    const declarationRowHtml = declaration_preparation_fee > 0 ? `
+        <div class="flex justify-between gap-3 text-gray-400"><span>${escapeHtml(forwarderDisplayName)} — დეკლარაციის მომზადება</span><strong class="text-amber-300 whitespace-nowrap">${declaration_preparation_fee.toFixed(2)} ₾</strong></div>
+    ` : '';
+    const operationalRowHtml = operational_handling_fee > 0 ? `
+        <div class="flex justify-between gap-3 text-gray-400"><span>${escapeHtml(forwarderDisplayName)} — ოპერაციული დამუშავება</span><strong class="text-amber-300 whitespace-nowrap">${operational_handling_fee.toFixed(2)} ₾</strong></div>
+    ` : '';
+    const forwarderFeeWarningHtml = calculation.warnings.length > 0 ? `
+        <div class="p-2.5 rounded-lg border border-amber-400/25 bg-amber-400/10 text-[11px] leading-relaxed text-amber-200/80">
+            ${calculation.warnings.includes('declaration-preparation-unverified') ? 'დეკლარაციის მომზადების საფასური დაუდასტურებელია და ჯამში არ შედის. ' : ''}
+            ${calculation.warnings.includes('operational-handling-unverified') ? 'სხვა ოპერაციული საფასური საჯარო წყაროში ვერ დადასტურდა და ჯამში არ შედის.' : ''}
+        </div>
+    ` : '';
+
     const cartInvoiceHtml = calculationMode === 'cart' ? `
         <div class="rounded-xl border border-brand-border overflow-hidden bg-brand-bg/25">
             <div class="px-3 py-2.5 bg-white/[0.03] border-b border-brand-border flex items-center justify-between gap-3">
@@ -1431,20 +1554,23 @@ calculateButton.addEventListener('click', async () => {
                     <span>ტრანსპორტირების ქვეჯამი</span>
                     <span class="text-right"><strong class="text-gray-200">$${calculation.shippingCostUSD.toFixed(2)}</strong><span class="block text-[10px]">${deliveryCostGEL.toFixed(2)} ₾</span></span>
                 </div>
+                ${insuranceRowHtml}
                 <div class="flex justify-between gap-3 pt-2 border-t border-brand-border text-gray-300">
-                    <span>სავარაუდო საბაჟო ღირებულება<br><span class="text-[10px] text-gray-600">საქონელი + ტრანსპორტირება</span></span>
+                    <span>სავარაუდო საბაჟო ღირებულება<br><span class="text-[10px] text-gray-600">${customsComponentsText}</span></span>
                     <strong class="text-white whitespace-nowrap">${taxableAmount.toFixed(2)} ₾</strong>
                 </div>
                 ${hasTax ? `
+                    ${importDutyRowHtml}
                     <div class="flex justify-between gap-3 text-gray-400">
-                        <span>დღგ (${taxableAmount.toFixed(2)} ₾ × 18%)</span>
+                        <span>დღგ (${calculation.vatTaxableBaseGEL.toFixed(2)} ₾ × ${(calculation.vatRate * 100).toFixed(0)}%)</span>
                         <strong class="text-red-300 whitespace-nowrap">${vat.toFixed(2)} ₾</strong>
                     </div>
-                    <div class="flex justify-between gap-3 text-gray-400"><span>საბაჟო მომსახურება</span><strong class="text-red-300 whitespace-nowrap">${treasury_fee.toFixed(2)} ₾</strong></div>
-                    <div class="flex justify-between gap-3 text-gray-400"><span>დეკლარაციის მომზადება</span><strong class="text-red-300 whitespace-nowrap">${declaration_preparation_fee.toFixed(2)} ₾</strong></div>
+                    ${treasuryRowHtml}
+                    ${declarationRowHtml}
                 ` : `
-                    <div class="flex justify-between gap-3 text-brand-lime/80"><span>სავარაუდო გადასახადები</span><strong>0.00 ₾</strong></div>
+                    <div class="flex justify-between gap-3 text-brand-lime/80"><span>სავარაუდო სახელმწიფო გადასახადები</span><strong>0.00 ₾</strong></div>
                 `}
+                ${operationalRowHtml}
             </div>
 
             <div class="px-3 py-3.5 border-t border-brand-border bg-brand-lime/5 flex justify-between items-end gap-3">
@@ -1456,9 +1582,10 @@ calculateButton.addEventListener('click', async () => {
         <div class="p-3 rounded-xl border border-amber-400/30 bg-amber-400/10 text-xs space-y-1.5">
             <p class="font-semibold text-amber-300">როგორ არის დათვლილი საბოლოო ჯამი</p>
             <p class="text-gray-300">ფასი დათვლილია იმ დაშვებით, რომ კალათაში დამატებული ამანათები ერთად ჩამოვა და ერთ გზავნილად გაფორმდება.</p>
-            <p class="text-gray-500">თუ გადამზიდი მათ ცალ-ცალკე გააფორმებს, თითოეული გზავნილი დამოუკიდებლად შეფასდება. 300 ₾-ის ზღვარს მიღწეულ თითოეულ გზავნილს შეიძლება ცალ-ცალკე დაერიცხოს საბაჟო მომსახურება და დეკლარაციის მომზადება. რეალური დაჯგუფების გარკვევის შემდეგ თითო გზავნილი ცალკე გამოთვალეთ.</p>
+            <p class="text-gray-500">თუ გადამზიდი მათ ცალ-ცალკე გააფორმებს, თითოეული გზავნილი დამოუკიდებლად შეფასდება. 300 ₾-ის ზღვარს გადაცილებულ თითოეულ გზავნილს შეიძლება ცალ-ცალკე დაერიცხოს საბაჟო მომსახურება და დეკლარაციის მომზადება. რეალური დაჯგუფების გარკვევის შემდეგ თითო გზავნილი ცალკე გამოთვალეთ.</p>
         </div>
         ${hasTax ? `<p class="text-xs text-red-300">${customsReasonText}</p>` : '<p class="text-xs text-brand-lime/70">*შეფასებით განბაჟების გარეშე</p>'}
+        ${forwarderFeeWarningHtml}
     ` : '';
 
     const singleItemHtml = calculationMode === 'single' ? `
@@ -1474,6 +1601,7 @@ calculateButton.addEventListener('click', async () => {
             </span>
             <span class="text-white font-medium">${deliveryCostGEL.toFixed(2)} ₾</span>
         </div>
+        ${insuranceCostGEL > 0 ? `<div class="flex justify-between items-center text-brand-text-muted text-sm"><span>დაზღვევა:</span><span class="text-white font-medium">${insuranceCostGEL.toFixed(2)} ₾</span></div>` : ''}
         ${toggleVolumetric.checked ? `
             <div class="text-xs text-gray-500 flex justify-between gap-3">
                 <span>ფიზიკური: ${realWeightKG.toFixed(2)} კგ</span>
@@ -1483,13 +1611,16 @@ calculateButton.addEventListener('click', async () => {
         ${hasTax ? `
             <div class="p-3 bg-red-500/10 rounded-xl border border-red-500/20 space-y-2 mt-2">
                 <p class="text-xs text-red-300 border-b border-red-500/20 pb-2">${customsReasonText}</p>
-                <div class="flex justify-between items-center text-gray-300 text-xs border-b border-red-500/20 pb-2"><span>დღგ (18%):</span><span class="text-red-400 font-medium">${vat.toFixed(2)} ₾</span></div>
-                <div class="flex justify-between items-center text-gray-300 text-xs"><span>საბაჟო მომსახურების შეფასება:</span><span class="text-red-400 font-medium">${treasury_fee.toFixed(2)} ₾</span></div>
-                <div class="flex justify-between items-center text-gray-300 text-xs"><span>დეკლარაციის მომზადების შეფასება:</span><span class="text-red-400 font-medium">${declaration_preparation_fee.toFixed(2)} ₾</span></div>
+                ${import_duty > 0 ? `<div class="flex justify-between items-center text-gray-300 text-xs"><span>იმპორტის გადასახადი (${importDutyPercent.toFixed(2)}%):</span><span class="text-red-400 font-medium">${import_duty.toFixed(2)} ₾</span></div>` : ''}
+                <div class="flex justify-between items-center text-gray-300 text-xs border-b border-red-500/20 pb-2"><span>დღგ (${calculation.vatTaxableBaseGEL.toFixed(2)} ₾ × ${(calculation.vatRate * 100).toFixed(0)}%):</span><span class="text-red-400 font-medium">${vat.toFixed(2)} ₾</span></div>
+                ${treasury_fee > 0 ? `<div class="flex justify-between items-center text-gray-300 text-xs"><span>RS საბაჟო მომსახურება:</span><span class="text-red-400 font-medium">${treasury_fee.toFixed(2)} ₾</span></div>` : ''}
+                ${declaration_preparation_fee > 0 ? `<div class="flex justify-between items-center text-gray-300 text-xs"><span>${escapeHtml(forwarderDisplayName)} — დეკლარაცია:</span><span class="text-amber-300 font-medium">${declaration_preparation_fee.toFixed(2)} ₾</span></div>` : ''}
             </div>
-        ` : '<div class="text-xs text-brand-lime/70 text-right">*შეფასებით: ღირებულება 300 ₾-ზე ნაკლებია და ფიზიკური წონა 30 კგ-ს არ აღემატება</div>'}
+        ` : '<div class="text-xs text-brand-lime/70 text-right">*შეფასებით: ღირებულება 300 ₾-ს არ აღემატება და ფიზიკური წონა 30 კგ-ს არ აღემატება</div>'}
+        ${operational_handling_fee > 0 ? `<div class="flex justify-between items-center text-xs text-gray-300"><span>${escapeHtml(forwarderDisplayName)} — ოპერაციული დამუშავება:</span><span class="text-amber-300 font-medium">${operational_handling_fee.toFixed(2)} ₾</span></div>` : ''}
+        ${forwarderFeeWarningHtml}
         <div class="h-px bg-brand-border my-4"></div>
-        <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2"><span>სავარაუდო საბაჟო ღირებულება:</span><span>${taxableAmount.toFixed(2)} ₾</span></div>
+        <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2"><span>სავარაუდო საბაჟო ღირებულება (${customsComponentsText}):</span><span>${taxableAmount.toFixed(2)} ₾</span></div>
         <div class="flex justify-between items-center"><span class="text-lg font-bold text-white">სულ:</span><span class="text-3xl font-bold text-brand-lime tracking-tight">${totalCostGEL.toFixed(2)} ₾</span></div>
     ` : '';
 
@@ -1549,7 +1680,7 @@ calculateButton.addEventListener('click', async () => {
         const title = titleInput.value.trim() || (calculationMode === 'cart' ? 'უსახელო კალათა' : 'უსახელო ნივთი');
 
         const savedData = {
-            schemaVersion: 5,
+            schemaVersion: 6,
             id: Date.now(),
             date: new Date().toLocaleString('ka-GE').split(',')[0],
             title: title,
@@ -1575,14 +1706,14 @@ calculateButton.addEventListener('click', async () => {
             total: totalCostGEL.toFixed(2),
             rate: exchangeRate.toFixed(4),
             deliveryGEL: deliveryCostGEL.toFixed(2),
-            taxTotal: hasTax ? (vat + calculation.serviceFeesGEL).toFixed(2) : "0.00",
+            taxTotal: calculation.totalAdditionalChargesGEL.toFixed(2),
             forwarderId: selectedForwarderId,
             forwarderName: forwarderDisplayName,
             shippingRatePerKG: shippingRatePerKG.toFixed(2),
             sourceCalculationId: recalculationSource?.id || null,
             cartSafetyBuffer: calculationMode === 'cart' ? safetyBuffer : null,
             invoiceSnapshot: {
-                version: 1,
+                version: 2,
                 calculationType: calculationMode,
                 items: calculationMode === 'cart'
                     ? currentCartItems.map((item, index) => ({
@@ -1626,16 +1757,28 @@ calculateButton.addEventListener('click', async () => {
                 itemCostGEL: priceGEL,
                 shippingCostUSD: calculation.shippingCostUSD,
                 shippingCostGEL: deliveryCostGEL,
+                insuranceUSD,
+                insuranceCostGEL,
                 estimatedCustomsValueGEL: taxableAmount,
                 hasTax,
+                importDutyRate,
+                importDutyGEL: import_duty,
+                vatTaxableBaseGEL: calculation.vatTaxableBaseGEL,
                 vatGEL: vat,
                 treasuryFeeGEL: treasury_fee,
                 declarationPreparationFeeGEL: declaration_preparation_fee,
+                operationalHandlingFeeGEL: operational_handling_fee,
+                forwarderFeesGEL: calculation.forwarderFeesGEL,
+                stateChargesGEL: calculation.stateChargesGEL,
+                totalAdditionalChargesGEL: calculation.totalAdditionalChargesGEL,
+                forwarderFeeWarnings: calculation.warnings,
                 serviceFeesGEL: calculation.serviceFeesGEL,
                 totalCostGEL
             },
             inputSnapshot: {
                 priceUSD,
+                insuranceUSD,
+                importDutyRate,
                 ...(calculationMode === 'single' ? {
                     weightInput,
                     weightUnit,
@@ -1674,7 +1817,7 @@ https://ahhhnuki.github.io/AhhhNuki/transp-calc
 ${calculationMode === 'cart' ? `კალათა: ${currentCartItems.length} ამანათი, $${priceUSD.toFixed(2)}` : `ნივთი: $${priceUSD.toFixed(2)}`}
 წონა: ${chargeableWeightKG.toFixed(2)} kg (${forwarderDisplayName})
 ტრანსპორტირება: ${deliveryCostGEL.toFixed(2)} ₾
-${hasTax ? `სავარაუდო გადასახადები: ${(vat + calculation.serviceFeesGEL).toFixed(2)} ₾` : 'შეფასებით განბაჟების გარეშე'}
+დამატებითი ხარჯები: ${calculation.totalAdditionalChargesGEL.toFixed(2)} ₾${hasTax ? '' : ' (სახელმწიფო განბაჟების გარეშე)'}
 ------------------
 სულ: ${totalCostGEL.toFixed(2)} ₾
         `.trim();
@@ -1703,6 +1846,9 @@ function restoreSavedCalculation(rawItem) {
     const snapshot = rawItem.inputSnapshot && typeof rawItem.inputSnapshot === 'object'
         ? rawItem.inputSnapshot
         : {};
+
+    insuranceInput.value = String(Math.max(0, finiteNumber(snapshot.insuranceUSD)));
+    importDutyRateInput.value = String(Math.max(0, finiteNumber(snapshot.importDutyRate) * 100));
 
     setCalculationMode(isCart ? 'cart' : 'single', {
         preserveRecalculation: true,
@@ -1793,8 +1939,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     cartItems = [createCartItem()];
     renderCartItems();
 
-    // 1. Fetch fresh forwarder rates from data/forwarders.json
-    await loadForwardersData();
+    // 1. Fetch fresh forwarder rates, fee policies and customs rules.
+    await Promise.all([loadForwardersData(), loadCustomsRules()]);
 
     // 2. Load saved forwarder
     const savedForwarder = localStorage.getItem('calc_forwarder');
@@ -1844,6 +1990,7 @@ forwarderSelect.addEventListener('change', (e) => {
 
     renderCustomDropdown(value);
     updateForwarderRateStatusPill(value);
+    renderForwarderFeePolicy(value);
 });
 
 // Save custom rate on input

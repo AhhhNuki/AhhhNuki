@@ -122,7 +122,7 @@
               "name": "რა არის საბაჟო ლიმიტი საქართველოში?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. საბოლოო დარიცხვას და საქონლის კლასიფიკაციას განსაზღვრავს საქართველოს შემოსავლების სამსახური."
+                "text": "კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღემატება ან ფიზიკური წონა 30 კგ-ს აღემატება. ზუსტად 300 ლარი და 30 კგ ზღვარშია. საბოლოო დარიცხვას და საქონლის კლასიფიკაციას განსაზღვრავს საქართველოს შემოსავლების სამსახური."
               }
             },
             {
@@ -321,6 +321,8 @@
                             ისტორია ➔
                         </button>
                     </div>
+
+                    <div id="forwarderFeePolicyInfo" class="mt-2 text-[11px] leading-relaxed text-gray-500" aria-live="polite"></div>
                     
                     <div id="customShippingInputWrapper" class="hidden mt-2">
                          <div class="relative">
@@ -329,6 +331,29 @@
                             <input type="number" id="customShippingRate" placeholder="ტრანსპორტირების ტარიფი ($/kg)" min="0.01" step="0.01" inputmode="decimal"
                                 class="w-full bg-brand-input border border-brand-border rounded-xl py-3 pl-8 pr-4 text-sm focus:ring-1 focus:ring-brand-lime outline-none text-white">
                         </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                    <div>
+                        <label for="insuranceCost" class="block text-sm font-medium text-brand-text-muted mb-2">დაზღვევა (USD)</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <input type="number" id="insuranceCost" value="0" min="0" step="0.01" inputmode="decimal"
+                                class="w-full bg-brand-input border border-brand-border rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none text-white">
+                        </div>
+                        <p class="text-[11px] text-gray-600 mt-1">თუ ცალკე გადაიხადეთ; საბაჟო ღირებულებაში შევა.</p>
+                    </div>
+                    <div>
+                        <label for="importDutyRate" class="block text-sm font-medium text-brand-text-muted mb-2">იმპორტის ტარიფი (%)</label>
+                        <input type="number" id="importDutyRate" value="0" min="0" max="100" step="0.01" inputmode="decimal" list="importDutyPresets"
+                            class="w-full bg-brand-input border border-brand-border rounded-xl py-3 px-4 focus:ring-1 focus:ring-brand-lime focus:border-brand-lime outline-none text-white">
+                        <datalist id="importDutyPresets">
+                            <option value="0"></option>
+                            <option value="5"></option>
+                            <option value="12"></option>
+                        </datalist>
+                        <p class="text-[11px] text-gray-600 mt-1">ხშირად 0%; გადაამოწმეთ <a href="https://www.rs.ge/CommodityCodes-en" target="_blank" rel="noopener noreferrer" class="text-brand-lime hover:underline">სასაქონლო კოდით</a>.</p>
                     </div>
                 </div>
 
@@ -381,7 +406,7 @@
                             </span>
                     </summary>
                     <div class="mt-4 text-brand-text-muted text-base leading-relaxed">
-                        კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღწევს ან ფიზიკური წონა 30 კგ-ს აღემატება. გამოთვლა საორიენტაციოა — საბოლოო დარიცხვას, შეღავათს და საქონლის კლასიფიკაციას განსაზღვრავს
+                        კალკულატორი განბაჟების რისკს აღნიშნავს, როდესაც სავარაუდო საბაჟო ღირებულება 300 ლარს აღემატება ან ფიზიკური წონა 30 კგ-ს აღემატება. ზუსტად 300 ლარი და 30 კგ ზღვარშია. გამოთვლა საორიენტაციოა — საბოლოო დარიცხვას, შეღავათს და საქონლის კლასიფიკაციას განსაზღვრავს
                         <a href="https://www.rs.ge/Parcelinfo" target="_blank" rel="noopener noreferrer" class="text-brand-lime hover:underline">საქართველოს შემოსავლების სამსახური</a>.
                     </div>
                 </details>

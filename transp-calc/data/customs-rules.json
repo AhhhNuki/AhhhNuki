@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-09-18",
+  "valueThresholdGEL": 300,
+  "weightLimitKG": 30,
+  "vatRate": 0.18,
+  "vatBaseIncludesImportDuty": true,
+  "treasuryFeeTiers": [
+    {
+      "aboveGEL": 300,
+      "upToGEL": 3000,
+      "amountGEL": 20
+    },
+    {
+      "aboveGEL": 3000,
+      "upToGEL": 10000,
+      "amountGEL": 100
+    },
+    {
+      "aboveGEL": 10000,
+      "upToGEL": null,
+      "amountGEL": 300
+    }
+  ],
+  "importDutyPresets": [0, 0.05, 0.12],
+  "sources": [
+    {
+      "label": "საქართველოს საბაჟო კოდექსი",
+      "url": "https://matsne.gov.ge/ka/document/view/4598501"
+    },
+    {
+      "label": "საქართველოს საგადასახადო კოდექსი",
+      "url": "https://matsne.gov.ge/ka/document/view/1043717"
+    },
+    {
+      "label": "შემოსავლების სამსახური — საფოსტო გზავნილები",
+      "url": "https://www.rs.ge/Parcelinfo"
+    },
+    {
+      "label": "შემოსავლების სამსახურის მომსახურების საფასურები",
+      "url": "https://matsne.gov.ge/ka/document/view/5439467"
+    }
+  ]
+}

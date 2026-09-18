@@ -77,13 +77,18 @@ function buildSavedInvoiceModel(rawItem) {
         snapshot?.shippingCostUSD,
         exchangeRate > 0 ? shippingCostGEL / exchangeRate : 0
     );
+    const insuranceUSD = normalizeNumber(snapshot?.insuranceUSD);
+    const insuranceCostGEL = normalizeNumber(snapshot?.insuranceCostGEL, insuranceUSD * exchangeRate);
     const estimatedCustomsValueGEL = normalizeNumber(
         snapshot?.estimatedCustomsValueGEL,
-        itemCostGEL + shippingCostGEL
+        itemCostGEL + shippingCostGEL + insuranceCostGEL
     );
     const totalCostGEL = normalizeNumber(snapshot?.totalCostGEL, normalizeNumber(rawItem?.total));
     const taxTotalGEL = snapshot
-        ? normalizeNumber(snapshot.vatGEL) + normalizeNumber(snapshot.serviceFeesGEL)
+        ? normalizeNumber(
+            snapshot.totalAdditionalChargesGEL,
+            normalizeNumber(snapshot.importDutyGEL) + normalizeNumber(snapshot.vatGEL) + normalizeNumber(snapshot.serviceFeesGEL)
+        )
         : normalizeNumber(rawItem?.taxTotal);
 
     const sourceItems = Array.isArray(snapshot?.items) && snapshot.items.length > 0
@@ -173,11 +178,19 @@ function buildSavedInvoiceModel(rawItem) {
         itemCostGEL,
         shippingCostUSD,
         shippingCostGEL,
+        insuranceUSD,
+        insuranceCostGEL,
         estimatedCustomsValueGEL,
         hasTax: snapshot ? Boolean(snapshot.hasTax) : taxTotalGEL > 0,
+        importDutyRate: normalizeNumber(snapshot?.importDutyRate),
+        importDutyGEL: normalizeNumber(snapshot?.importDutyGEL),
+        vatTaxableBaseGEL: normalizeNumber(snapshot?.vatTaxableBaseGEL, estimatedCustomsValueGEL),
         vatGEL: normalizeNumber(snapshot?.vatGEL),
         treasuryFeeGEL: normalizeNumber(snapshot?.treasuryFeeGEL),
         declarationPreparationFeeGEL: normalizeNumber(snapshot?.declarationPreparationFeeGEL),
+        operationalHandlingFeeGEL: normalizeNumber(snapshot?.operationalHandlingFeeGEL),
+        forwarderFeesGEL: normalizeNumber(snapshot?.forwarderFeesGEL),
+        forwarderFeeWarnings: Array.isArray(snapshot?.forwarderFeeWarnings) ? snapshot.forwarderFeeWarnings : [],
         taxTotalGEL,
         totalCostGEL
     };
@@ -274,21 +287,32 @@ function renderSavedInvoice(rawItem) {
         createInvoiceTotalRow('საქონლის ქვეჯამი', `$${model.priceUSD.toFixed(2)}`, `${model.itemCostGEL.toFixed(2)} ₾`),
         createInvoiceTotalRow('ტრანსპორტირების ქვეჯამი', `$${model.shippingCostUSD.toFixed(2)}`, `${model.shippingCostGEL.toFixed(2)} ₾`)
     );
+    if (model.insuranceCostGEL > 0) {
+        totals.appendChild(createInvoiceTotalRow('დაზღვევა', `$${model.insuranceUSD.toFixed(2)}`, `${model.insuranceCostGEL.toFixed(2)} ₾`));
+    }
     const customsRow = createInvoiceTotalRow('სავარაუდო საბაჟო ღირებულება', `${model.estimatedCustomsValueGEL.toFixed(2)} ₾`, '', 'text-white');
     customsRow.classList.add('pt-2', 'border-t', 'border-brand-border', 'text-gray-300');
     totals.appendChild(customsRow);
     if (model.hasTax) {
         if (model.hasSnapshot) {
-            totals.append(
-                createInvoiceTotalRow(`დღგ (${model.estimatedCustomsValueGEL.toFixed(2)} ₾ × 18%)`, `${model.vatGEL.toFixed(2)} ₾`, '', 'text-red-300'),
-                createInvoiceTotalRow('საბაჟო მომსახურება', `${model.treasuryFeeGEL.toFixed(2)} ₾`, '', 'text-red-300'),
-                createInvoiceTotalRow('დეკლარაციის მომზადება', `${model.declarationPreparationFeeGEL.toFixed(2)} ₾`, '', 'text-red-300')
-            );
+            if (model.importDutyGEL > 0) {
+                totals.appendChild(createInvoiceTotalRow(`იმპორტის გადასახადი (${(model.importDutyRate * 100).toFixed(2)}%)`, `${model.importDutyGEL.toFixed(2)} ₾`, '', 'text-red-300'));
+            }
+            totals.appendChild(createInvoiceTotalRow(`დღგ (${model.vatTaxableBaseGEL.toFixed(2)} ₾ × 18%)`, `${model.vatGEL.toFixed(2)} ₾`, '', 'text-red-300'));
+            if (model.treasuryFeeGEL > 0) {
+                totals.appendChild(createInvoiceTotalRow('RS საბაჟო მომსახურება', `${model.treasuryFeeGEL.toFixed(2)} ₾`, '', 'text-red-300'));
+            }
+            if (model.declarationPreparationFeeGEL > 0) {
+                totals.appendChild(createInvoiceTotalRow('გადამზიდის დეკლარაციის მომზადება', `${model.declarationPreparationFeeGEL.toFixed(2)} ₾`, '', 'text-amber-300'));
+            }
         } else {
             totals.appendChild(createInvoiceTotalRow('გადასახადები და მომსახურება', `${model.taxTotalGEL.toFixed(2)} ₾`, '', 'text-red-300'));
         }
     } else {
         totals.appendChild(createInvoiceTotalRow('სავარაუდო გადასახადები', '0.00 ₾', '', 'text-brand-lime'));
+    }
+    if (model.operationalHandlingFeeGEL > 0) {
+        totals.appendChild(createInvoiceTotalRow('გადამზიდის ოპერაციული დამუშავება', `${model.operationalHandlingFeeGEL.toFixed(2)} ₾`, '', 'text-amber-300'));
     }
     invoice.appendChild(totals);
 
@@ -308,6 +332,19 @@ function renderSavedInvoice(rawItem) {
             createInvoiceElement('p', 'text-gray-500', 'თუ გადამზიდი ამანათებს ცალ-ცალკე გააფორმებს, თითოეული გზავნილი დამოუკიდებლად შეფასდება და შესაბამისი მომსახურების საფასურებიც შეიძლება ცალ-ცალკე დაერიცხოს.')
         );
         fragment.appendChild(assumption);
+    }
+
+    if (model.forwarderFeeWarnings.length > 0) {
+        const warning = createInvoiceElement('div', 'mt-4 p-3 rounded-xl border border-amber-400/30 bg-amber-400/10 text-xs text-amber-200/80');
+        const messages = [];
+        if (model.forwarderFeeWarnings.includes('declaration-preparation-unverified')) {
+            messages.push('დეკლარაციის მომზადების საფასური დაუდასტურებელია და ჯამში არ შედის.');
+        }
+        if (model.forwarderFeeWarnings.includes('operational-handling-unverified')) {
+            messages.push('ოპერაციული საფასური დაუდასტურებელია და ჯამში არ შედის.');
+        }
+        warning.textContent = messages.join(' ');
+        fragment.appendChild(warning);
     }
 
     return { fragment, model };
@@ -575,7 +612,7 @@ function loadAndRenderHistory() {
         }
 
         if (item.taxTotal > 0) {
-            const tax = createSummaryRow('განბაჟება + დღგ:', `${item.taxTotal.toFixed(2)} ₾`);
+            const tax = createSummaryRow('დამატებითი ხარჯები:', `${item.taxTotal.toFixed(2)} ₾`);
             tax.className = 'flex justify-between gap-3 text-red-400/90 bg-red-900/10 px-2 py-1 rounded border border-red-900/20';
             details.append(tax);
         } else {

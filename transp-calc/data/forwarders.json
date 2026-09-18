@@ -8,6 +8,29 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://www.usa2georgia.com",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://www.usa2georgia.com/agreements/ka.html",
+      "declarationPreparation": {
+        "status": "verified",
+        "appliesWhen": "customs-clearance",
+        "amountGEL": 16
+      },
+      "operationalHandling": {
+        "status": "verified",
+        "appliesWhen": "always",
+        "basis": "declaredGoodsValueGEL",
+        "tiers": [
+          { "upToGEL": 100, "flatGEL": 1 },
+          { "upToGEL": 200, "flatGEL": 2 },
+          { "upToGEL": 300, "flatGEL": 3 },
+          { "upToGEL": 3000, "rate": 0.02 },
+          { "upToGEL": 10000, "rate": 0.04 },
+          { "upToGEL": 20000, "rate": 0.08 },
+          { "upToGEL": null, "rate": 0.12 }
+        ]
+      }
+    },
     "history": [
       {
         "date": "2026-09-16",
@@ -48,6 +71,18 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://camex.ge",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://camex.ge/files/camex_agreement_ge.pdf",
+      "declarationPreparation": {
+        "status": "verified",
+        "appliesWhen": "customs-clearance",
+        "amountGEL": 10
+      },
+      "operationalHandling": {
+        "status": "none"
+      }
+    },
     "history": [
       {
         "date": "2024-02-15",
@@ -74,6 +109,19 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://inex.ge",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://old.legacy.inex.ge/ka/custom-procedures",
+      "declarationPreparation": {
+        "status": "verified",
+        "appliesWhen": "customs-clearance",
+        "amountGEL": 10,
+        "note": "ონლაინ ამანათი; პერსონალური ამანათის საფასურია 15 ლარი"
+      },
+      "operationalHandling": {
+        "status": "none"
+      }
+    },
     "history": [
       {
         "date": "2026-09-16",
@@ -100,6 +148,18 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://maleo.ge",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://maleo.ge/?attr=distdecl&language=ge&module=html",
+      "declarationPreparation": {
+        "status": "verified",
+        "appliesWhen": "customs-clearance",
+        "amountGEL": 10
+      },
+      "operationalHandling": {
+        "status": "none"
+      }
+    },
     "history": [
       {
         "date": "2026-09-16",
@@ -133,6 +193,16 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://spacecargo.ge",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://www.spacecargo.ge/AboutUs",
+      "declarationPreparation": {
+        "status": "unverified"
+      },
+      "operationalHandling": {
+        "status": "unverified"
+      }
+    },
     "history": [
       {
         "date": "2026-09-16",
@@ -159,6 +229,18 @@
     "currency": "USD",
     "unit": "kg",
     "website": "https://kiwipost.ge",
+    "fees": {
+      "verifiedAt": "2026-09-18",
+      "sourceUrl": "https://kiwipost.ge/docs/terms_GE.pdf",
+      "declarationPreparation": {
+        "status": "verified",
+        "appliesWhen": "customs-clearance",
+        "amountGEL": 10
+      },
+      "operationalHandling": {
+        "status": "none"
+      }
+    },
     "history": [
       {
         "date": "2024-01-01",

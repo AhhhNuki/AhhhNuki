@@ -76,3 +76,43 @@ test('opens legacy saved carts from their stored totals without current-price re
     assert.equal(model.shippingRows[0].summaryOnly, true);
     assert.equal(model.hasSnapshot, false);
 });
+
+test('preserves insurance, import duty and forwarder fees in version 2 invoice snapshots', () => {
+    const model = buildSavedInvoiceModel({
+        title: 'USA parcel',
+        total: '560.25',
+        invoiceSnapshot: {
+            version: 2,
+            exchangeRate: 2.7,
+            forwarderName: 'USA2GEORGIA',
+            shippingRatePerKG: 9.95,
+            priceUSD: 130,
+            itemCostGEL: 351,
+            shippingCostUSD: 9.95,
+            shippingCostGEL: 26.865,
+            insuranceUSD: 5,
+            insuranceCostGEL: 13.5,
+            estimatedCustomsValueGEL: 391.365,
+            hasTax: true,
+            importDutyRate: 0.12,
+            importDutyGEL: 46.9638,
+            vatTaxableBaseGEL: 438.3288,
+            vatGEL: 78.899184,
+            treasuryFeeGEL: 20,
+            declarationPreparationFeeGEL: 16,
+            operationalHandlingFeeGEL: 7.02,
+            forwarderFeesGEL: 23.02,
+            serviceFeesGEL: 43.02,
+            totalAdditionalChargesGEL: 168.882984,
+            totalCostGEL: 560.247984
+        }
+    });
+
+    assert.equal(model.insuranceUSD, 5);
+    assert.equal(model.insuranceCostGEL, 13.5);
+    assert.equal(model.importDutyRate, 0.12);
+    assert.equal(model.importDutyGEL, 46.9638);
+    assert.equal(model.operationalHandlingFeeGEL, 7.02);
+    assert.equal(model.taxTotalGEL, 168.882984);
+    assert.equal(model.totalCostGEL, 560.247984);
+});

@@ -13,6 +13,9 @@ const {
     calculateCosts,
     calculateCartCosts
 } = require('../calculator-core.js');
+const forwarders = require('../data/forwarders.json');
+
+const feePolicy = id => forwarders.find(forwarder => forwarder.id === id).fees;
 
 function validInput(overrides = {}) {
     return {
@@ -21,6 +24,9 @@ function validInput(overrides = {}) {
         weightUnit: 'kilograms',
         shippingRatePerKG: 9,
         exchangeRate: 2.6,
+        insuranceUSD: 0,
+        importDutyRate: 0,
+        forwarderFeePolicy: feePolicy('inex'),
         useVolumetric: false,
         dimensions: { lengthCm: 0, widthCm: 0, heightCm: 0 },
         ...overrides
@@ -75,7 +81,7 @@ test('requires all dimensions when volumetric calculation is enabled', () => {
     assert.equal(validation.errors[0].field, 'dimensions');
 });
 
-test('applies estimated VAT at the 300 GEL customs-value threshold', () => {
+test('keeps exactly 300 GEL within the personal postal exemption', () => {
     const input = validInput({
         priceUSD: 99,
         weightInput: 1,
@@ -85,9 +91,10 @@ test('applies estimated VAT at the 300 GEL customs-value threshold', () => {
     const result = calculateCosts(input);
 
     assert.equal(result.estimatedCustomsValueGEL, 300);
-    assert.equal(result.reachesValueThreshold, true);
-    assert.equal(result.hasTax, true);
-    assert.equal(result.vatGEL, 54);
+    assert.equal(result.atValueThreshold, true);
+    assert.equal(result.reachesValueThreshold, false);
+    assert.equal(result.hasTax, false);
+    assert.equal(result.vatGEL, 0);
 });
 
 test('keeps an estimated customs value below 300 GEL exempt', () => {
@@ -248,17 +255,18 @@ test('calculates customs charges once for the combined cart estimate', () => {
         useVolumetric: false
     });
     const result = calculateCartCosts({
-        items: [parcel(70), parcel(70)],
+        items: [parcel(75), parcel(75)],
         shippingRatePerKG: 5,
-        exchangeRate: 2
+        exchangeRate: 2,
+        forwarderFeePolicy: feePolicy('inex')
     });
 
-    assert.equal(result.estimatedCustomsValueGEL, 300);
-    assert.equal(result.vatGEL, 54);
+    assert.equal(result.estimatedCustomsValueGEL, 320);
+    assert.equal(result.vatGEL, 57.599999999999994);
     assert.equal(result.treasuryFeeGEL, 20);
     assert.equal(result.declarationPreparationFeeGEL, 10);
     assert.equal(result.serviceFeesGEL, 30);
-    assert.equal(result.totalCostGEL, 384);
+    assert.equal(result.totalCostGEL, 407.6);
 });
 
 test('applies the 30 kg limit to the combined cart estimate', () => {
@@ -271,13 +279,16 @@ test('applies the 30 kg limit to the combined cart estimate', () => {
             useVolumetric: false
         })),
         shippingRatePerKG: 0.01,
-        exchangeRate: 2
+        exchangeRate: 2,
+        forwarderFeePolicy: feePolicy('inex')
     });
 
     assert.equal(result.physicalWeightKg, 40);
     assert.equal(result.exceedsWeightLimit, true);
     assert.equal(result.hasTax, true);
-    assert.equal(result.serviceFeesGEL, 30);
+    assert.equal(result.treasuryFeeGEL, 0);
+    assert.equal(result.declarationPreparationFeeGEL, 10);
+    assert.equal(result.serviceFeesGEL, 10);
 });
 
 test('reports remaining cart allowance and the configured safety buffer', () => {
@@ -307,7 +318,7 @@ test('reports cart overage when goods reach the 300 GEL threshold', () => {
     assert.equal(status.reachesGoodsThreshold, true);
 });
 
-test('treats exactly 300 GEL as reaching the goods threshold', () => {
+test('treats exactly 300 GEL as at, but not over, the goods threshold', () => {
     const status = calculateCartThresholdStatus(
         [{ priceUSD: 100, quantity: 1 }],
         3,
@@ -317,7 +328,75 @@ test('treats exactly 300 GEL as reaching the goods threshold', () => {
     assert.equal(status.goodsSubtotalGEL, 300);
     assert.equal(status.remainingGEL, 0);
     assert.equal(status.overageGEL, 0);
-    assert.equal(status.reachesGoodsThreshold, true);
+    assert.equal(status.atGoodsThreshold, true);
+    assert.equal(status.exceedsGoodsThreshold, false);
+    assert.equal(status.reachesGoodsThreshold, false);
+});
+
+test('includes separately paid insurance in customs value', () => {
+    const result = calculateCosts(validInput({
+        priceUSD: 100,
+        weightInput: 1,
+        shippingRatePerKG: 10,
+        exchangeRate: 3,
+        insuranceUSD: 5
+    }));
+
+    assert.equal(result.insuranceCostGEL, 15);
+    assert.equal(result.estimatedCustomsValueGEL, 345);
+    assert.equal(result.vatGEL, 62.099999999999994);
+});
+
+test('adds import duty to the VAT taxable base', () => {
+    const result = calculateCosts(validInput({
+        priceUSD: 100,
+        weightInput: 1,
+        shippingRatePerKG: 10,
+        exchangeRate: 3,
+        importDutyRate: 0.12
+    }));
+
+    assert.equal(result.estimatedCustomsValueGEL, 330);
+    assert.equal(result.importDutyGEL, 39.6);
+    assert.equal(result.vatTaxableBaseGEL, 369.6);
+    assert.ok(Math.abs(result.vatGEL - 66.528) < 1e-9);
+});
+
+test('uses tiered Revenue Service fees above 3,000 and 10,000 GEL', () => {
+    const medium = calculateCosts(validInput({ priceUSD: 1200, weightInput: 1, shippingRatePerKG: 1, exchangeRate: 3 }));
+    const high = calculateCosts(validInput({ priceUSD: 4000, weightInput: 1, shippingRatePerKG: 1, exchangeRate: 3 }));
+
+    assert.equal(medium.treasuryFeeGEL, 100);
+    assert.equal(high.treasuryFeeGEL, 300);
+});
+
+test('applies USA2GEORGIA declaration and operational handling fees from JSON', () => {
+    const result = calculateCosts(validInput({
+        priceUSD: 130,
+        weightInput: 1,
+        shippingRatePerKG: 15,
+        exchangeRate: 2.7,
+        forwarderFeePolicy: feePolicy('usa2georgia')
+    }));
+
+    assert.equal(result.estimatedCustomsValueGEL, 391.5);
+    assert.equal(result.declarationPreparationFeeGEL, 16);
+    assert.ok(Math.abs(result.operationalHandlingFeeGEL - 7.02) < 1e-9);
+    assert.ok(Math.abs(result.totalCostGEL - 504.99) < 1e-9);
+});
+
+test('applies USA2GEORGIA operational handling below the customs threshold', () => {
+    const result = calculateCosts(validInput({
+        priceUSD: 50,
+        weightInput: 1,
+        shippingRatePerKG: 1,
+        exchangeRate: 2,
+        forwarderFeePolicy: feePolicy('usa2georgia')
+    }));
+
+    assert.equal(result.hasTax, false);
+    assert.equal(result.operationalHandlingFeeGEL, 1);
+    assert.equal(result.declarationPreparationFeeGEL, 0);
 });
 
 test('enters the warning zone at the configured safe limit', () => {
