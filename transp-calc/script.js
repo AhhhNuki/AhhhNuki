@@ -283,14 +283,14 @@ function resetCartThresholdPreview(message = 'შეიყვანეთ ნი
     if (!subtotalUSD || !subtotalGEL || !bar || !statusMessage || !remainingLabel || !remaining || !safeRemaining) return;
 
     subtotalUSD.textContent = '$0.00';
-    subtotalGEL.textContent = '0.00 ₾';
+    subtotalGEL.textContent = '0.00\u00A0₾';
     bar.style.width = '0%';
     bar.classList.remove('bg-amber-400', 'bg-red-500');
     bar.classList.add('bg-brand-lime');
     statusMessage.classList.remove('text-amber-400', 'text-red-400');
     statusMessage.classList.add('text-brand-lime');
     statusMessage.textContent = message;
-    remainingLabel.textContent = 'დარჩენილი:';
+    remainingLabel.textContent = '300\u00A0₾-მდე დარჩენილი:';
     remaining.textContent = '—';
     safeRemaining.textContent = '—';
 }
@@ -483,7 +483,7 @@ function applyThresholdPresentation(status) {
     if (!subtotalUSD || !subtotalGEL || !bar || !message || !remainingLabel || !remaining || !safeRemaining) return;
 
     subtotalUSD.textContent = `$${status.subtotalUSD.toFixed(2)}`;
-    subtotalGEL.textContent = `${status.goodsSubtotalGEL.toFixed(2)} ₾`;
+    subtotalGEL.textContent = `${status.goodsSubtotalGEL.toFixed(2)}\u00A0₾`;
     bar.style.width = `${Math.min(status.usedPercent, 100)}%`;
     bar.classList.remove('bg-brand-lime', 'bg-amber-400', 'bg-red-500');
     message.classList.remove('text-brand-lime', 'text-amber-400', 'text-red-400');
@@ -491,32 +491,32 @@ function applyThresholdPresentation(status) {
     if (status.exceedsGoodsThreshold) {
         bar.classList.add('bg-red-500');
         message.classList.add('text-red-400');
-        message.textContent = `300 ₾-ის ზღვარი გადაცილებულია ${status.overageGEL.toFixed(2)} ₾-ით`;
-        remainingLabel.textContent = 'ზღვარს გადაცილებული:';
-        remaining.textContent = `${status.overageGEL.toFixed(2)} ₾ • $${status.overageUSD.toFixed(2)}`;
+        message.textContent = `ნივთების ჯამი 300\u00A0₾-ს აღემატება ${status.overageGEL.toFixed(2)}\u00A0₾-ით`;
+        remainingLabel.textContent = '300\u00A0₾-ზე მეტი:';
+        remaining.textContent = `${status.overageGEL.toFixed(2)}\u00A0₾ • $${status.overageUSD.toFixed(2)}`;
     } else if (status.atGoodsThreshold) {
         bar.classList.add('bg-amber-400');
         message.classList.add('text-amber-400');
-        message.textContent = 'საქონლის ჯამი ზუსტად 300 ₾-ია — ზღვარი არ არის გადაცილებული';
-        remainingLabel.textContent = 'დარჩენილი:';
-        remaining.textContent = '0.00 ₾';
+        message.textContent = 'ნივთების ჯამი ზუსტად 300\u00A0₾-ია';
+        remainingLabel.textContent = '300\u00A0₾-მდე დარჩენილი:';
+        remaining.textContent = '0.00\u00A0₾';
     } else if (status.exceedsSafeLimit) {
         bar.classList.add('bg-amber-400');
         message.classList.add('text-amber-400');
         message.textContent = 'საქონლის ჯამი უსაფრთხოების ბუფერშია';
-        remainingLabel.textContent = 'დარჩენილი:';
-        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ • $${status.remainingUSD.toFixed(2)}`;
+        remainingLabel.textContent = '300\u00A0₾-მდე დარჩენილი:';
+        remaining.textContent = `${status.remainingGEL.toFixed(2)}\u00A0₾ • $${status.remainingUSD.toFixed(2)}`;
     } else {
         bar.classList.add('bg-brand-lime');
         message.classList.add('text-brand-lime');
-        message.textContent = `გამოყენებულია 300 ₾-ის ზღვრის ${status.usedPercent.toFixed(1)}%`;
-        remainingLabel.textContent = 'დარჩენილი:';
-        remaining.textContent = `${status.remainingGEL.toFixed(2)} ₾ • $${status.remainingUSD.toFixed(2)}`;
+        message.textContent = `ნივთების ფასის 300\u00A0₾ ნიშნულის გამოყენება: ${status.usedPercent.toFixed(1)}%`;
+        remainingLabel.textContent = '300\u00A0₾-მდე დარჩენილი:';
+        remaining.textContent = `${status.remainingGEL.toFixed(2)}\u00A0₾ • $${status.remainingUSD.toFixed(2)}`;
     }
 
     safeRemaining.textContent = status.safeRemainingGEL > 0
-        ? `${status.safeRemainingGEL.toFixed(2)} ₾ • $${status.safeRemainingUSD.toFixed(2)}`
-        : '0.00 ₾';
+        ? `${status.safeRemainingGEL.toFixed(2)}\u00A0₾ • $${status.safeRemainingUSD.toFixed(2)}`
+        : '0.00\u00A0₾';
 }
 
 async function updateCartThresholdPreview() {
