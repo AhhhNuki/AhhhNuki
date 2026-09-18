@@ -538,14 +538,16 @@ function loadAndRenderHistory() {
                 const renameForm = document.createElement('form');
                 renameForm.className = 'mr-1 space-y-2';
                 const renameLabel = document.createElement('label');
-                renameLabel.className = 'sr-only';
-                renameLabel.textContent = 'კალათის ახალი სახელი';
+                renameLabel.className = 'block';
+                const renameLabelText = document.createElement('span');
+                renameLabelText.className = 'sr-only';
+                renameLabelText.textContent = 'კალათის ახალი სახელი';
                 const renameInput = document.createElement('input');
                 renameInput.type = 'text';
                 renameInput.value = item.title;
                 renameInput.maxLength = 100;
                 renameInput.className = 'w-full bg-brand-bg border border-brand-lime/40 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-brand-lime';
-                renameLabel.appendChild(renameInput);
+                renameLabel.append(renameLabelText, renameInput);
 
                 const renameActions = document.createElement('div');
                 renameActions.className = 'flex gap-2';
