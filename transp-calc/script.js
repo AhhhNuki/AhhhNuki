@@ -1693,7 +1693,7 @@ calculateButton.addEventListener('click', async () => {
         ${operational_handling_fee > 0 ? `<div class="flex justify-between items-center text-xs text-gray-300"><span>${escapeHtml(forwarderDisplayName)} — ოპერაციული დამუშავება:</span><span class="text-amber-300 font-medium">${operational_handling_fee.toFixed(2)} ₾</span></div>` : ''}
         ${forwarderFeeWarningHtml}
         <div class="h-px bg-brand-border my-4"></div>
-        <div class="flex justify-between items-center text-xs text-brand-text-muted mb-2"><span>სავარაუდო საბაჟო ღირებულება (${customsComponentsText}):</span><span>${taxableAmount.toFixed(2)} ₾</span></div>
+        <div class="flex justify-between items-center gap-3 text-xs text-brand-text-muted mb-2"><span class="min-w-0">სავარაუდო საბაჟო ღირებულება (${customsComponentsText}):</span><span class="flex-shrink-0 whitespace-nowrap text-right">${taxableAmount.toFixed(2)}&nbsp;₾</span></div>
         <div class="flex justify-between items-center"><span class="text-lg font-bold text-white">სულ:</span><span class="text-3xl font-bold text-brand-lime tracking-tight">${totalCostGEL.toFixed(2)} ₾</span></div>
     ` : '';
 
